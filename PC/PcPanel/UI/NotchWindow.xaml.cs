@@ -27,7 +27,7 @@ namespace PcPanel.UI
     /// </summary>
     public partial class NotchWindow : Window
     {
-        enum Mode { Hidden, Idle, Music, Countdown, Info, Volume, Notif, Call }
+        enum Mode { Hidden, Idle, Music, Countdown, Info, Volume, Notif, Call, DropPeek, DropHover, Sending }
 
         const double CW = 312, CH = 38, CR = 19;     // compact music
         const double EW = 470, EH = 178, ER = 34;    // expanded music
@@ -70,7 +70,7 @@ namespace PcPanel.UI
         {
             InitializeComponent();
             _accent = (SolidColorBrush)Resources["AccentBrush"];
-            _panels = new FrameworkElement[] { IdlePanel, CompactPanel, ExpandedPanel, InfoPanel, VolumePanel, NotifPanel, CallPanel, CountdownPanel };
+            _panels = new FrameworkElement[] { IdlePanel, CompactPanel, ExpandedPanel, InfoPanel, VolumePanel, NotifPanel, CallPanel, CountdownPanel, DropPeekPanel, DropHoverPanel, SendPanel };
             foreach (var p in _panels)
             {
                 p.RenderTransformOrigin = new Point(0.5, 0.5);
@@ -120,6 +120,7 @@ namespace PcPanel.UI
                 var ex = (long)Native.GetWindowLongPtr(_hwnd, Native.GWL_EXSTYLE);
                 ex |= Native.WS_EX_TOOLWINDOW | Native.WS_EX_NOACTIVATE | Native.WS_EX_TRANSPARENT;
                 Native.SetWindowLongPtr(_hwnd, Native.GWL_EXSTYLE, (IntPtr)ex);
+                InitDrop();
             };
             Microsoft.Win32.SystemEvents.DisplaySettingsChanged += (s, e) => Dispatcher.BeginInvoke(new Action(PositionWindow));
             ApplyStyle();
@@ -199,6 +200,8 @@ namespace PcPanel.UI
             InfoGlyph.Visibility = Visibility.Visible;
             _infoBattery.Visibility = Visibility.Collapsed;
             InfoGlyph.Text = glyph;
+            InfoGlyph.Foreground = _accent;
+            InfoGlyph.RenderTransform = null;
             InfoText.Text = text;
             InfoText.Foreground = Brushes.White;
             ShowTransient(Mode.Info, seconds);
@@ -282,13 +285,14 @@ namespace PcPanel.UI
         {
             _transient = m;
             Restart(_transientTimer, seconds);
+            if (_phase != DropPhase.None) return;   // a drag/drop owns the notch right now
             Go(m, sameContentChanged: _shown == m);
         }
 
         void Refresh(bool force = false)
         {
             if (!Allowed() || !App.Settings.NotchEnabled) _transient = Mode.Hidden;
-            var target = _transient != Mode.Hidden ? _transient : ComputeBase();
+            var target = _phase != DropPhase.None ? DropMode : _transient != Mode.Hidden ? _transient : ComputeBase();
             if (target == _shown && !force) return;
             Go(target, false);
         }
@@ -298,6 +302,7 @@ namespace PcPanel.UI
             _shown = target;
             if (target != Mode.Music && _expanded) { _expanded = false; SetClickThrough(true); _progressTimer.Stop(); }
             if (target != Mode.Countdown) _cdTimer.Stop();
+            if (target != Mode.DropPeek && target != Mode.DropHover) StopDropLoops();
 
             switch (target)
             {
@@ -339,6 +344,21 @@ namespace PcPanel.UI
                 case Mode.Call:
                     Morph(KW, KH, KR);
                     ShowPanel(CallPanel, sameContentChanged);
+                    break;
+                case Mode.DropPeek:
+                    UpdatePeek();
+                    Morph(_peekNear ? PNW : PW, _peekNear ? PNH : PH, _peekNear ? PNH / 2 : PR);
+                    ShowPanel(DropPeekPanel, false);
+                    StartDropLoops(Mode.DropPeek);
+                    break;
+                case Mode.DropHover:
+                    Morph(HW, HH, HR);
+                    ShowPanel(DropHoverPanel, false);
+                    StartDropLoops(Mode.DropHover);
+                    break;
+                case Mode.Sending:
+                    Morph(SW, SH, SR);
+                    ShowPanel(SendPanel, false);
                     break;
             }
             _hoverTimer.Start();

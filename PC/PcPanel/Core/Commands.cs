@@ -255,6 +255,7 @@ namespace PcPanel.Core
                 case "fileStart": await FileService.OnStart(s, m); break;
                 case "fileChunk": await FileService.OnChunk(s, m); break;
                 case "fileEnd": await FileService.OnEnd(s, m); break;
+                case "fileAck": FileService.OnAck(m); break;
 
                 // ------------------------------------------------ countdown in the notch
                 case "countdown":

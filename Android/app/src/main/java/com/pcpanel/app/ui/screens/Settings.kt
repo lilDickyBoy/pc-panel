@@ -34,6 +34,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AddPhotoAlternate
 import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.BatterySaver
 import androidx.compose.material.icons.rounded.Call
@@ -208,6 +209,8 @@ fun SettingsScreen() {
             IconSwitchRow(Icons.Rounded.Computer, C.Blue, Str.t("set.notchConn"), ps.notchConn) { Connection.setShared("notchConn", it) }
             Divider()
             IconSwitchRow(Icons.Rounded.BatteryChargingFull, C.Green, Str.t("set.notchCharge"), ps.notchCharge, Str.t("set.notchChargeSub")) { Connection.setShared("notchCharge", it) }
+            Divider()
+            IconSwitchRow(Icons.Rounded.AddPhotoAlternate, C.Indigo, Str.t("set.notchDrop"), ps.notchDrop, Str.t("set.notchDropSub")) { Connection.setShared("notchDrop", it) }
         }
 
         // ------------------------------------------------ phone → PC

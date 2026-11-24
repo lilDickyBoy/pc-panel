@@ -6,7 +6,7 @@
         Topmost="True" ShowInTaskbar="False" ShowActivated="False" ResizeMode="NoResize"
         Focusable="False" Width="660" Height="270" UseLayoutRounding="True"
         TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType"
-        FontFamily="{StaticResource UiFont}">
+        FontFamily="{StaticResource UiFont}" AllowDrop="True">
     <Window.Resources>
         <SolidColorBrush x:Key="AccentBrush" Color="#0A84FF"/>
         <LinearGradientBrush x:Key="NoArtBrush" StartPoint="0,0" EndPoint="1,1">
@@ -38,6 +38,16 @@
             <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
+        <LinearGradientBrush x:Key="DropGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#0A84FF" Offset="0"/>
+            <GradientStop Color="#5E5CE6" Offset="0.6"/>
+            <GradientStop Color="#BF5AF2" Offset="1"/>
+        </LinearGradientBrush>
+        <RadialGradientBrush x:Key="DropGlow">
+            <GradientStop Color="#660A84FF" Offset="0"/>
+            <GradientStop Color="#220A84FF" Offset="0.55"/>
+            <GradientStop Color="#000A84FF" Offset="1"/>
+        </RadialGradientBrush>
         <Style x:Key="CtrlGlyph" TargetType="TextBlock">
             <Setter Property="FontFamily" Value="{StaticResource IconFont}"/>
             <Setter Property="Foreground" Value="White"/>
@@ -251,7 +261,75 @@
                     <TextBlock x:Name="CdLabel" Grid.Column="1" Foreground="#FF9F0A" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" Margin="10,0,12,0" TextTrimming="CharacterEllipsis"/>
                     <TextBlock x:Name="CdTime" Grid.Column="2" Foreground="#FF9F0A" FontSize="15" FontWeight="Bold" VerticalAlignment="Center" FontFamily="Segoe UI Variable Display, Segoe UI"/>
                 </Grid>
+                <!-- ============ DRAG & DROP: peek (a drag started somewhere) ============ -->
+                <StackPanel x:Name="DropPeekPanel" Opacity="0" IsHitTestVisible="False" Orientation="Horizontal" Height="44" VerticalAlignment="Top" HorizontalAlignment="Center">
+                    <Grid Width="28" Height="28" VerticalAlignment="Center" Margin="0,0,10,0">
+                        <Ellipse x:Name="PeekDisc" Fill="#2E0A84FF"/>
+                        <TextBlock x:Name="PeekGlyph" Style="{StaticResource CtrlGlyph}" FontSize="13" Foreground="#0A84FF">
+                            <TextBlock.RenderTransform><TranslateTransform/></TextBlock.RenderTransform>
+                        </TextBlock>
+                    </Grid>
+                    <TextBlock x:Name="PeekText" Foreground="White" FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- ============ DRAG & DROP: hovering over the notch ============ -->
+                <Grid x:Name="DropHoverPanel" Opacity="0" IsHitTestVisible="False" Height="178" VerticalAlignment="Top">
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,6,0,0">
+                        <Grid Width="92" Height="92" HorizontalAlignment="Center">
+                            <Ellipse x:Name="HoverGlow" Fill="{StaticResource DropGlow}" RenderTransformOrigin="0.5,0.5">
+                                <Ellipse.RenderTransform><ScaleTransform/></Ellipse.RenderTransform>
+                            </Ellipse>
+                            <Rectangle x:Name="HoverDash" Width="64" Height="64" RadiusX="19" RadiusY="19" StrokeThickness="2"
+                                       StrokeDashArray="3.2 2.4" StrokeDashCap="Round" Stroke="{StaticResource DropGradient}" Fill="#1A0A84FF"/>
+                            <TextBlock x:Name="HoverGlyph" Style="{StaticResource CtrlGlyph}" FontSize="27">
+                                <TextBlock.RenderTransform><TranslateTransform/></TextBlock.RenderTransform>
+                            </TextBlock>
+                        </Grid>
+                        <TextBlock x:Name="HoverTitle" Foreground="White" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                        <TextBlock x:Name="HoverSub" Foreground="#8E8E93" FontSize="12.5" HorizontalAlignment="Center" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" MaxWidth="330"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- ============ DRAG & DROP: sending to the phone ============ -->
+                <Grid x:Name="SendPanel" Opacity="0" IsHitTestVisible="False" Height="92" VerticalAlignment="Top" Margin="18,0,22,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="58"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid Width="56" Height="56" VerticalAlignment="Center">
+                        <Rectangle x:Name="SendThumb" RadiusX="14" RadiusY="14" Fill="#2C2C2E"/>
+                        <TextBlock x:Name="SendGlyph" Style="{StaticResource CtrlGlyph}" FontSize="22"/>
+                        <Rectangle RadiusX="14" RadiusY="14" Stroke="#26FFFFFF" StrokeThickness="1"/>
+                    </Grid>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0">
+                        <Grid>
+                            <TextBlock x:Name="SendTitle" Foreground="White" FontSize="14.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,0,54,0"/>
+                            <TextBlock x:Name="SendPct" Foreground="#64D2FF" FontSize="13.5" FontWeight="Bold" HorizontalAlignment="Right" FontFamily="Segoe UI Variable Display, Segoe UI"/>
+                        </Grid>
+                        <TextBlock x:Name="SendName" Foreground="#8E8E93" FontSize="12" TextTrimming="CharacterEllipsis" Margin="0,2,0,9"/>
+                        <Grid x:Name="SendTrack" Height="6" ClipToBounds="True">
+                            <Border CornerRadius="3" Background="#3A3A3C"/>
+                            <Border x:Name="SendFill" CornerRadius="3" HorizontalAlignment="Left" Width="0" Background="{StaticResource DropGradient}">
+                                <Border x:Name="SendShine" CornerRadius="3">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                            <LinearGradientBrush.RelativeTransform><TranslateTransform x:Name="ShineMove" X="-1"/></LinearGradientBrush.RelativeTransform>
+                                            <GradientStop Color="#00FFFFFF" Offset="0.3"/>
+                                            <GradientStop Color="#66FFFFFF" Offset="0.5"/>
+                                            <GradientStop Color="#00FFFFFF" Offset="0.7"/>
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                </Border>
+                            </Border>
+                        </Grid>
+                    </StackPanel>
+                </Grid>
             </Grid>
         </Grid>
+
+        <!-- invisible, nearly transparent target that only exists while something is being dragged,
+             so the drop zone is a bit bigger than the notch itself -->
+        <Border x:Name="DropCatcher" Background="#01000000" Width="560" Height="236" VerticalAlignment="Top" HorizontalAlignment="Center"
+                Visibility="Collapsed" AllowDrop="True"/>
     </Grid>
 </Window>

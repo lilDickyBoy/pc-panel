@@ -558,7 +558,8 @@ namespace PcPanel.UI
                 SwitchRow(Glyph.Phone, CBlue, Loc.T("pc.notch.connections"), null, st.NotchConnectInfo, "notchConn"),
                 SwitchRow(Glyph.Bolt, CGreen, Loc.T("pc.notch.charging"), Loc.T("pc.notch.chargingSub"), st.NotchCharging, "notchCharge"),
                 SwitchRow(Glyph.Bell, CRed, Loc.T("pc.notch.notifs"), Loc.T("pc.notch.notifsSub"), st.NotchNotifications, "notchNotif"),
-                SwitchRow(Glyph.Call, CGreen, Loc.T("pc.notch.calls"), Loc.T("pc.notch.callsSub"), st.NotchCalls, "notchCall")
+                SwitchRow(Glyph.Call, CGreen, Loc.T("pc.notch.calls"), Loc.T("pc.notch.callsSub"), st.NotchCalls, "notchCall"),
+                SwitchRow(Glyph.Upload, CIndigo, Loc.T("pc.notch.drop"), Loc.T("pc.notch.dropSub"), st.NotchDrop, "notchDrop")
             ));
 
             var test = Btn(Loc.T("pc.notch.test"), () =>

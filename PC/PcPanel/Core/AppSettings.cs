@@ -30,6 +30,7 @@ namespace PcPanel.Core
         public bool NotchConnectInfo { get; set; } = true;
         public bool NotchNotifications { get; set; } = true;
         public bool NotchCalls { get; set; } = true;
+        public bool NotchDrop { get; set; } = true;
         public bool NotchCharging { get; set; } = true;
 
         // ---- features

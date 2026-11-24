@@ -75,6 +75,7 @@ Download the new APK and ZIP from [Releases](https://github.com/lilDickyBoy/pc-p
 - **PC:** install the .NET 8 SDK and run `PC\Build-and-Install.bat`.
 - **Android:** install Android Studio (JDK 17/21) and run `Android\Build-APK.bat`.
 - **Translations:** these live in `i18n/*.json` and are shared by both apps.
+- **Releases:** publishing a GitHub release runs `.github/workflows/build.yml` (kept as `tools/ci/build.yml` in the source and placed there by `tools/publish-github.ps1`), which builds the APK and the Windows zip in the cloud and attaches them to the release. The APK is signed with the key in the `DEBUG_KEYSTORE_B64` repository secret, so updates install over the old version.
 
 ## License
 MIT

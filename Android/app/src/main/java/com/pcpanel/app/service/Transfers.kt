@@ -114,58 +114,105 @@ object Transfers {
     }
 
     // ------------------------------------------------------------------ PC → phone
+    private val imageExt = setOf("jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "bmp", "tif", "tiff", "avif", "jfif")
+    private val videoExt = setOf("mp4", "mov", "mkv", "webm", "avi", "m4v", "3gp")
+
+    private enum class Kind { Image, Video, Other }
+
+    private fun kindOf(name: String): Kind {
+        val ext = name.substringAfterLast('.', "").lowercase()
+        return when (ext) { in imageExt -> Kind.Image; in videoExt -> Kind.Video; else -> Kind.Other }
+    }
+
+    private val incomingKind = ConcurrentHashMap<String, Kind>()
+
+    /** Images go to the gallery (Pictures/PC Panel), videos to Movies/PC Panel, everything else to Downloads/PC Panel. */
     fun onIncomingStart(ctx: Context, o: JSONObject) {
         val id = o.optString("id")
         val name = o.optString("name", "file").replace(Regex("[\\\\/:*?\"<>|]"), "_")
         val size = o.optLong("size")
+        val kind = kindOf(name)
         try {
             val inc: Incoming
+            val ext = name.substringAfterLast('.', "").lowercase()
+            val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext)
+                ?: if (kind == Kind.Image) "image/*" else if (kind == Kind.Video) "video/*" else "application/octet-stream"
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(name.substringAfterLast('.', "").lowercase()) ?: "application/octet-stream"
-                val values = ContentValues().apply {
-                    put(MediaStore.Downloads.DISPLAY_NAME, name)
-                    put(MediaStore.Downloads.MIME_TYPE, mime)
-                    put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/PC Panel")
-                    put(MediaStore.Downloads.IS_PENDING, 1)
+                val (collection, dir) = when (kind) {
+                    Kind.Image -> MediaStore.Images.Media.EXTERNAL_CONTENT_URI to Environment.DIRECTORY_PICTURES
+                    Kind.Video -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI to Environment.DIRECTORY_MOVIES
+                    Kind.Other -> MediaStore.Downloads.EXTERNAL_CONTENT_URI to Environment.DIRECTORY_DOWNLOADS
                 }
-                val uri = ctx.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: return
-                inc = Incoming(uri, null, ctx.contentResolver.openOutputStream(uri) ?: return, name, size)
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+                    put(MediaStore.MediaColumns.MIME_TYPE, mime)
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, "$dir/PC Panel")
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+                val uri = ctx.contentResolver.insert(collection, values) ?: throw Exception("insert")
+                inc = Incoming(uri, null, ctx.contentResolver.openOutputStream(uri) ?: throw Exception("open"), name, size)
             } else {
-                val dir = File(ctx.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "PC Panel").apply { mkdirs() }
-                val f = File(dir, name)
+                val base = when (kind) {
+                    Kind.Image -> Environment.DIRECTORY_PICTURES
+                    Kind.Video -> Environment.DIRECTORY_MOVIES
+                    Kind.Other -> Environment.DIRECTORY_DOWNLOADS
+                }
+                val dir = File(ctx.getExternalFilesDir(base), "PC Panel").apply { mkdirs() }
+                var f = File(dir, name)
+                var n = 2
+                while (f.exists()) { f = File(dir, name.substringBeforeLast('.') + " ($n)" + (if (name.contains('.')) "." + name.substringAfterLast('.') else "")); n++ }
                 inc = Incoming(null, f, f.outputStream(), name, size)
             }
             incoming[id] = inc
+            incomingKind[id] = kind
             add(Transfer(id, name, size, 0, incoming = true))
-        } catch (_: Exception) { }
+        } catch (_: Exception) {
+            Connection.cmd("fileAck", "id" to id, "idx" to -1, "ok" to false)
+        }
     }
 
     fun onIncomingChunk(o: JSONObject) {
-        val inc = incoming[o.optString("id")] ?: return
+        val id = o.optString("id")
+        val idx = o.optInt("idx", 0)
+        val inc = incoming[id]
+        if (inc == null) { Connection.cmd("fileAck", "id" to id, "idx" to idx, "ok" to false); return }
         try {
             val bytes = Base64.getDecoder().decode(o.optString("data"))
             inc.out.write(bytes)
             inc.got += bytes.size
             val got = inc.got
-            update(o.optString("id")) { it.copy(done = got) }
-        } catch (_: Exception) { }
+            update(id) { it.copy(done = got) }
+            Connection.cmd("fileAck", "id" to id, "idx" to idx, "ok" to true)
+        } catch (_: Exception) {
+            Connection.cmd("fileAck", "id" to id, "idx" to idx, "ok" to false)
+        }
     }
 
     fun onIncomingEnd(ctx: Context, o: JSONObject) {
         val id = o.optString("id")
         val inc = incoming.remove(id) ?: return
+        val kind = incomingKind.remove(id) ?: Kind.Other
         try { inc.out.close() } catch (_: Exception) { }
+        if (o.optBoolean("cancel", false)) {
+            try { inc.uri?.let { ctx.contentResolver.delete(it, null, null) }; inc.file?.delete() } catch (_: Exception) { }
+            update(id) { it.copy(finished = true, failed = true) }
+            return
+        }
         var openUri: Uri? = null
+        var ok = true
         try {
             if (inc.uri != null) {
-                ctx.contentResolver.update(inc.uri, ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) }, null, null)
+                ctx.contentResolver.update(inc.uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
                 openUri = inc.uri
             } else if (inc.file != null) {
+                if (kind != Kind.Other) android.media.MediaScannerConnection.scanFile(ctx, arrayOf(inc.file.absolutePath), null, null)
                 openUri = FileProvider.getUriForFile(ctx, ctx.packageName + ".files", inc.file)
             }
-        } catch (_: Exception) { }
+        } catch (_: Exception) { ok = false }
+        // tells the PC the file is really saved (newer PC Panel shows "Saved to your phone" after this)
+        Connection.cmd("fileAck", "id" to id, "idx" to -2, "ok" to ok)
         update(id) { it.copy(finished = true, done = inc.got) }
-        Connection.showBanner(Str.f("files.received", inc.name), BannerKind.Success)
+        Connection.showBanner(if (kind == Kind.Image) Str.f("files.savedGallery", inc.name) else Str.f("files.received", inc.name), BannerKind.Success)
         notifyReceived(ctx, inc.name, openUri)
     }
 

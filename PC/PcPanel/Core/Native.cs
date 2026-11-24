@@ -18,6 +18,36 @@ namespace PcPanel.Core
         [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")]
         public static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
 
+        // ---------- Drag & drop detection (Explorer raises these when you start dragging items) ----------
+        public const uint EVENT_OBJECT_DRAGSTART = 0x8021;
+        public const uint EVENT_OBJECT_DRAGCANCEL = 0x8022;
+        public const uint EVENT_OBJECT_DRAGCOMPLETE = 0x8023;
+        public const uint WINEVENT_OUTOFCONTEXT = 0x0000;
+        public const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
+        public delegate void WinEventDelegate(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr SetWinEventHook(uint eventMin, uint eventMax, IntPtr hmodWinEventProc, WinEventDelegate lpfnWinEventProc, uint idProcess, uint idThread, uint dwFlags);
+
+        [DllImport("user32.dll")]
+        public static extern bool UnhookWinEvent(IntPtr hWinEventHook);
+
+        public const int VK_LBUTTON = 0x01;
+        [DllImport("user32.dll")]
+        public static extern short GetAsyncKeyState(int vKey);
+        public static bool LeftButtonDown
+        {
+            get
+            {
+                // respect swapped mouse buttons
+                int vk = GetSystemMetrics(23) != 0 ? 0x02 : VK_LBUTTON;
+                return (GetAsyncKeyState(vk) & 0x8000) != 0;
+            }
+        }
+
+        [DllImport("user32.dll")]
+        public static extern int GetSystemMetrics(int nIndex);
+
         [StructLayout(LayoutKind.Sequential)]
         public struct POINT { public int X; public int Y; }
 

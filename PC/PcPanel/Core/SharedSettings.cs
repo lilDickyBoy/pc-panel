@@ -30,6 +30,7 @@ namespace PcPanel.Core
                 notchConn = s.NotchConnectInfo,
                 notchNotif = s.NotchNotifications,
                 notchCall = s.NotchCalls,
+                notchDrop = s.NotchDrop,
                 notchCharge = s.NotchCharging,
                 sounds = s.Sounds,
                 soundVol = s.SoundVolume,
@@ -76,6 +77,7 @@ namespace PcPanel.Core
                     case "notchConn": s.NotchConnectInfo = B(v); break;
                     case "notchNotif": s.NotchNotifications = B(v); break;
                     case "notchCall": s.NotchCalls = B(v); break;
+                    case "notchDrop": s.NotchDrop = B(v); break;
                     case "notchCharge": s.NotchCharging = B(v); break;
                     case "sounds": s.Sounds = B(v); break;
                     case "soundVol": s.SoundVolume = Math.Clamp(I(v, 70), 0, 100); break;

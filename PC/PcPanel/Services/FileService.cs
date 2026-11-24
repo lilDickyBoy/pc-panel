@@ -115,35 +115,102 @@ namespace PcPanel.Services
             foreach (var k in _in.Keys.ToArray()) Abort(k);
         }
 
-        /// <summary>Send a file from the PC to a phone.</summary>
-        public static async Task<bool> SendAsync(Session s, string path)
+        // ---- acknowledgements from the phone for PC → phone transfers (newer phone apps send them) ----
+        static readonly ConcurrentDictionary<string, TaskCompletionSource<bool>> _acks = new ConcurrentDictionary<string, TaskCompletionSource<bool>>();
+
+        static TaskCompletionSource<bool> Expect(string id, int idx)
         {
-            var name = Path.GetFileName(path);
+            var t = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _acks[id + ":" + idx] = t;
+            return t;
+        }
+
+        public static void OnAck(JsonObject m)
+        {
+            var key = S(m, "id") + ":" + (int)L(m, "idx");
+            bool ok = true;
+            try { ok = m["ok"]?.GetValue<bool>() ?? true; } catch { }
+            if (_acks.TryRemove(key, out var t)) t.TrySetResult(ok);
+        }
+
+        static async Task<bool?> Wait(TaskCompletionSource<bool> t, int ms)
+        {
+            var done = await Task.WhenAny(t.Task, Task.Delay(ms));
+            return done == t.Task ? t.Task.Result : (bool?)null;
+        }
+
+        public enum SendResult { Ok, Failed, Cancelled }
+
+        /// <summary>
+        /// Send a file from the PC to a phone. progress gets 0..1. When the phone app acknowledges chunks,
+        /// progress follows what the phone actually wrote and Ok means the file is saved on the phone.
+        /// </summary>
+        public static async Task<SendResult> SendAsync(Session s, string path, Action<double> progress = null, Func<bool> cancelled = null, string sendName = null)
+        {
+            var name = sendName ?? Path.GetFileName(path);
+            var id = Guid.NewGuid().ToString("N");
             try
             {
                 var fi = new FileInfo(path);
-                if (!fi.Exists || fi.Length > MaxSize) return false;
-                var id = Guid.NewGuid().ToString("N");
+                if (!fi.Exists || fi.Length > MaxSize) return SendResult.Failed;
+                long total = Math.Max(1, fi.Length);
                 await s.SendAsync(new { type = "fileStart", id, name, size = fi.Length });
                 using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 1 << 16);
                 var buf = new byte[ChunkSize];
                 long sent = 0; int idx = 0; int n;
+                bool? acking = null;                       // null = not known yet, false = old phone app
+                var pending = new System.Collections.Generic.Queue<(TaskCompletionSource<bool> t, long upTo)>();
+                long confirmed = 0;
                 while ((n = await fs.ReadAsync(buf, 0, buf.Length)) > 0)
                 {
-                    if (!s.Authed) return false;
+                    if (!s.Authed) return SendResult.Failed;
+                    if (cancelled?.Invoke() == true) { await s.SendAsync(new { type = "fileEnd", id, cancel = true }); return SendResult.Cancelled; }
+                    var t = acking == false ? null : Expect(id, idx);
                     await s.SendAsync(new { type = "fileChunk", id, idx = idx++, data = Convert.ToBase64String(buf, 0, n) });
                     sent += n;
-                    SendProgress?.Invoke(name, fi.Length == 0 ? 1 : (double)sent / fi.Length, false);
+                    if (t != null) pending.Enqueue((t, sent));
+                    // keep up to 4 chunks in flight
+                    while (pending.Count > (acking == null ? 0 : 3))
+                    {
+                        var (pt, upTo) = pending.Dequeue();
+                        var r = await Wait(pt, acking == null ? 4000 : 20000);
+                        if (r == null)
+                        {
+                            if (acking == null) { acking = false; pending.Clear(); break; }   // old phone app: no acks
+                            return SendResult.Failed;
+                        }
+                        if (r == false) return SendResult.Failed;
+                        acking = true;
+                        confirmed = upTo;
+                    }
+                    double frac = acking == true ? (double)confirmed / total : (double)sent / total;
+                    progress?.Invoke(Math.Min(frac, 0.99));
+                    SendProgress?.Invoke(name, Math.Min(frac, 0.99), false);
                 }
+                while (pending.Count > 0)
+                {
+                    var (pt, upTo) = pending.Dequeue();
+                    var r = await Wait(pt, 20000);
+                    if (r != true) { if (acking == null && r == null) { acking = false; break; } return SendResult.Failed; }
+                    confirmed = upTo;
+                    progress?.Invoke(Math.Min((double)confirmed / total, 0.99));
+                }
+                var saved = acking == true ? Expect(id, -2) : null;
                 await s.SendAsync(new { type = "fileEnd", id });
+                if (saved != null && await Wait(saved, 15000) == false) return SendResult.Failed;
+                progress?.Invoke(1);
                 SendProgress?.Invoke(name, 1, true);
-                return true;
+                return SendResult.Ok;
             }
             catch (Exception ex)
             {
                 Log.Write("Send file: " + ex.Message);
                 SendProgress?.Invoke(name, 0, true);
-                return false;
+                return SendResult.Failed;
+            }
+            finally
+            {
+                foreach (var k in _acks.Keys.Where(k => k.StartsWith(id + ":")).ToArray()) _acks.TryRemove(k, out _);
             }
         }
     }
