@@ -6,7 +6,7 @@ $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $Root    = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $Repo    = 'pc-panel'
-$Version = '2.0.0'
+$Version = '2.0.1'
 $Tag     = "v$Version"
 $Rel     = Join-Path $Root '_release'
 
@@ -124,6 +124,10 @@ Say "Kaynak kod yuklendi." Green
 # --- release ---------------------------------------------------------------
 $notes = @"
 ## PC Panel $Version
+
+**What's new**
+- Fixed Spotify login (``redirect_uri: Not present`` error)
+- Links with parameters now open correctly in every browser
 
 **Download**
 - ``PC-Panel.apk`` - Android phone app (installs over the old MobiLink app as an update)

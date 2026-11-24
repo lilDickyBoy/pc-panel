@@ -135,6 +135,23 @@ namespace PcPanel.Services
         public static void ShellOpen(string target)
         {
             if (string.IsNullOrWhiteSpace(target)) return;
+            try
+            {
+                // explorer.exe can drop the query string of a URL on the way to the browser,
+                // so web links with parameters go through a temporary .url shortcut instead.
+                if ((target.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || target.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                    && (target.Contains('?') || target.Contains('&')))
+                {
+                    var dir = Path.Combine(Path.GetTempPath(), "PC Panel");
+                    Directory.CreateDirectory(dir);
+                    foreach (var old in Directory.GetFiles(dir, "link-*.url"))
+                        try { if (File.GetCreationTimeUtc(old) < DateTime.UtcNow.AddMinutes(-10)) File.Delete(old); } catch { }
+                    var file = Path.Combine(dir, "link-" + Guid.NewGuid().ToString("N")[..8] + ".url");
+                    File.WriteAllText(file, "[InternetShortcut]\r\nURL=" + target.Replace("\r", "").Replace("\n", "") + "\r\n");
+                    target = file;
+                }
+            }
+            catch (Exception ex) { Log.Write("ShellOpen url: " + ex.Message); }
             try { Process.Start(new ProcessStartInfo("explorer.exe", "\"" + target.Replace("\"", "") + "\"") { UseShellExecute = false }); }
             catch (Exception ex)
             {

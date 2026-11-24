@@ -63,13 +63,32 @@ namespace PcPanel.Services
                       "&redirect_uri=" + Uri.EscapeDataString(RedirectUri) +
                       "&code_challenge_method=S256&code_challenge=" + challenge +
                       "&state=" + state;
-            SystemSetup.ShellOpen(url);
+            // Open a short local address instead of the long Spotify URL: passing a URL with a query
+            // string through explorer.exe can drop the parameters (Spotify then says "redirect_uri: Not present").
+            // Our listener answers /login with a redirect to the full authorize URL.
+            SystemSetup.ShellOpen("http://127.0.0.1:47803/login");
 
             try
             {
-                var ctxTask = _listener.GetContextAsync();
-                if (await Task.WhenAny(ctxTask, Task.Delay(TimeSpan.FromMinutes(5))) != ctxTask) { _listener.Stop(); return false; }
-                var ctx = ctxTask.Result;
+                var deadline = DateTime.UtcNow.AddMinutes(5);
+                HttpListenerContext ctx = null;
+                while (ctx == null)
+                {
+                    var ctxTask = _listener.GetContextAsync();
+                    var left = deadline - DateTime.UtcNow;
+                    if (left <= TimeSpan.Zero || await Task.WhenAny(ctxTask, Task.Delay(left)) != ctxTask) { _listener.Stop(); return false; }
+                    var c = ctxTask.Result;
+                    var path = c.Request.Url?.AbsolutePath ?? "";
+                    if (path.StartsWith("/callback", StringComparison.OrdinalIgnoreCase)) { ctx = c; break; }
+                    if (path.StartsWith("/login", StringComparison.OrdinalIgnoreCase))
+                    {
+                        c.Response.StatusCode = 302;
+                        c.Response.RedirectLocation = url;
+                        c.Response.AddHeader("Cache-Control", "no-store");
+                    }
+                    else c.Response.StatusCode = 404;
+                    c.Response.Close();
+                }
                 var q = System.Web.HttpUtility.ParseQueryString(ctx.Request.Url.Query);
                 string code = q["code"], gotState = q["state"], err = q["error"];
                 bool ok = code != null && gotState == state;
