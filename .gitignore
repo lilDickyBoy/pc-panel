@@ -1,0 +1,21 @@
+# .NET
+bin/
+obj/
+_check/
+*.user
+.vs/
+
+# Android / Gradle
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+captures/
+
+# Outputs and logs
+*.apk
+*.zip
+*-log.txt
+_release/
