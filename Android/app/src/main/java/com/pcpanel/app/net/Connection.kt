@@ -569,7 +569,7 @@ object Connection {
             }
             "activityList" -> {
                 val a = o.optJSONArray("items") ?: JSONArray()
-                val list = (0 until a.length()).mapNotNull { a.optJSONObject(it)?.let(ActivityItem::parse) }
+                val list = (0 until a.length()).mapNotNull { a.optJSONObject(it)?.let { j -> ActivityItem.parse(j) } }
                 ui { activity = list }
                 val seen = Prefs.lastActivitySeen
                 if (seen > 0 && pcSettings.secAlerts) {

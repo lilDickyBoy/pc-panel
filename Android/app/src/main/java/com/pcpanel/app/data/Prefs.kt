@@ -60,8 +60,8 @@ object Prefs {
         private set
     /** seconds before disconnecting after leaving the app (0 = immediately) */
     var disconnectDelay by mutableStateOf(60)
-    var lastActivitySeen = 0L
         private set
+    var lastActivitySeen = 0L
         private set
     /** live data refresh in ms: 1000 / 2000 / 5000 */
     var refreshMs by mutableStateOf(1000)
