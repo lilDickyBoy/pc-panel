@@ -30,6 +30,21 @@ namespace PcPanel
 
         protected override void OnStartup(StartupEventArgs e)
         {
+            // PC Panel needs admin rights for the hardware sensors and fan control. Instead of a UAC prompt
+            // on every launch, a normal launch starts the "PC Panel Launcher" scheduled task (already approved
+            // once) and quits. Only the very first launch after installing asks for permission.
+            if (!SystemSetup.IsElevated && !e.Args.Contains("--no-elevate"))
+            {
+                if (SystemSetup.RunLauncherTask()) { Shutdown(); return; }
+                try
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath, "--launched") { UseShellExecute = true, Verb = "runas" });
+                    Shutdown();
+                    return;
+                }
+                catch { /* UAC declined: keep running without admin rights (fewer sensors) */ }
+            }
+
             _mutex = new Mutex(true, "Local\\PCPanel.SingleInstance", out bool created);
             if (!created)
             {
@@ -76,6 +91,12 @@ namespace PcPanel
                 Ui(() => Notch?.SettingsChanged());
             };
             SpotifyService.I.StateChanged += () => Ui(SharedSettings.Push);
+            BluetoothService.I.DeviceChanged += (name, on) => Ui(() => Notch?.ShowBluetooth(name, on));
+            BluetoothService.I.Start();
+            ActivityService.I.Start();
+            ActivityService.I.Changed += () => Ui(() => _main?.OnActivityChanged());
+            ScreenshotWatcher.I.Start();
+            DownloadWatcher.I.Start();
 
             Server = new Server();
             Server.PhoneConnected += s => Ui(() =>
@@ -134,6 +155,8 @@ namespace PcPanel
         // ---------------------------------------------------------------- media / volume
         void OnMediaChanged()
         {
+            var mm = MediaService.I;
+            LyricsService.I.OnTrack(mm.Title, mm.Artist, mm.Album, mm.DurationSec);
             Notch.OnMediaChanged();
             if (_mediaPushPending) return;
             var wait = TimeSpan.FromMilliseconds(250) - (DateTime.Now - _lastMediaPush);

@@ -35,6 +35,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AddPhotoAlternate
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Lyrics
+import androidx.compose.material.icons.rounded.Screenshot
+import androidx.compose.material.icons.rounded.Shield
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.BatterySaver
 import androidx.compose.material.icons.rounded.Call
@@ -90,6 +96,13 @@ import com.pcpanel.app.net.Connection
 import com.pcpanel.app.service.NotifListener
 import com.pcpanel.app.ui.Str
 import com.pcpanel.app.ui.components.Chip
+import com.pcpanel.app.ui.components.BrandChip
+import com.pcpanel.app.ui.components.BrandRes
+import com.pcpanel.app.ui.components.BrandRow
+import com.pcpanel.app.ui.components.BrandSwitchRow
+import com.pcpanel.app.net.PcSettings
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.border
 import com.pcpanel.app.ui.components.DialogButton
 import com.pcpanel.app.ui.components.Divider
 import com.pcpanel.app.ui.components.FatSlider
@@ -211,7 +224,15 @@ fun SettingsScreen() {
             IconSwitchRow(Icons.Rounded.BatteryChargingFull, C.Green, Str.t("set.notchCharge"), ps.notchCharge, Str.t("set.notchChargeSub")) { Connection.setShared("notchCharge", it) }
             Divider()
             IconSwitchRow(Icons.Rounded.AddPhotoAlternate, C.Indigo, Str.t("set.notchDrop"), ps.notchDrop, Str.t("set.notchDropSub")) { Connection.setShared("notchDrop", it) }
+            Divider()
+            IconSwitchRow(Icons.Rounded.Lyrics, C.Pink, Str.t("set.lyrics"), ps.lyrics, Str.t("set.lyricsSub")) { Connection.setShared("lyrics", it) }
+            Divider()
+            BrandSwitchRow(BrandRes.bluetooth, BrandRes.Dark, Str.t("set.notchBt"), ps.notchBt, Str.t("set.notchBtSub")) { Connection.setShared("notchBt", it) }
         }
+
+        // ------------------------------------------------ notch edge light
+        SectionTitle(Str.t("set.glow"))
+        GroupCard { GlowSettings(ps) }
 
         // ------------------------------------------------ phone → PC
         SectionTitle(Str.t("set.phoneToPc"))
@@ -242,6 +263,16 @@ fun SettingsScreen() {
             IconSwitchRow(Icons.Rounded.Lock, C.Indigo, Str.t("set.autoLock"), ps.autoLock, Str.t("set.autoLockSub")) { Connection.setShared("autoLock", it) }
         }
 
+        // ------------------------------------------------ PC → phone
+        SectionTitle(Str.t("set.pcToPhone"))
+        GroupCard {
+            IconSwitchRow(Icons.Rounded.Screenshot, C.Pink, Str.t("set.shotToPhone"), ps.shotToPhone, Str.t("set.shotToPhoneSub")) { Connection.setShared("shotToPhone", it) }
+            Divider()
+            IconSwitchRow(Icons.Rounded.Shield, C.Indigo, Str.t("set.secAlerts"), ps.secAlerts, Str.t("set.secAlertsSub")) { Connection.setShared("secAlerts", it) }
+            Divider()
+            IconSwitchRow(Icons.Rounded.Download, C.Green, Str.t("set.dlAlerts"), ps.dlAlerts, Str.t("set.dlAlertsSub")) { Connection.setShared("dlAlerts", it) }
+        }
+
         // ------------------------------------------------ sounds & screen
         SectionTitle(Str.t("set.soundsScreen"))
         GroupCard {
@@ -263,12 +294,13 @@ fun SettingsScreen() {
         SectionTitle(Str.t("set.music"))
         GroupCard {
             IconRow(Icons.Rounded.MusicNote, C.Pink, Str.t("set.musicSrc"), below = true) {
-                Segmented(listOf("Spotify", "YouTube"), if (ps.musicSrc == "youtube") 1 else 0, Modifier.fillMaxWidth()) {
-                    Connection.setShared("musicSrc", if (it == 1) "youtube" else "spotify")
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    BrandChip(BrandRes.spotify, "Spotify", ps.musicSrc != "youtube", BrandRes.SpotifyGreen, Modifier.weight(1f)) { Connection.setShared("musicSrc", "spotify") }
+                    BrandChip(BrandRes.youtube, "YouTube", ps.musicSrc == "youtube", Color(0xFFFF0033), Modifier.weight(1f)) { Connection.setShared("musicSrc", "youtube") }
                 }
             }
             Divider()
-            IconRow(Icons.Rounded.MusicNote, Color(0xFF1DB954), if (ps.spotify) Str.f("set.spotifyAs", ps.spotifyUser.ifBlank { "Spotify" }) else Str.t("set.spotifyOff"),
+            BrandRow(BrandRes.spotify, BrandRes.Dark, if (ps.spotify) Str.f("set.spotifyAs", ps.spotifyUser.ifBlank { "Spotify" }) else Str.t("set.spotifyOff"),
                 if (ps.spotify) null else if (ps.spotifyClient) Str.t("set.spotifyConnectSub") else Str.t("music.needSetup")) {
                 Text(
                     if (ps.spotify) Str.t("conn.disconnect") else Str.t("conn.connect"),
@@ -276,6 +308,10 @@ fun SettingsScreen() {
                     modifier = Modifier.bounceClick { if (ps.spotify) Connection.spotifyLogout() else { Connection.spotifyLogin(); Connection.showBanner(Str.t("music.loginOnPc")) } }.padding(6.dp)
                 )
             }
+            Divider()
+            BrandSwitchRow(BrandRes.spotifyWhite, BrandRes.SpotifyGreen, Str.t("set.spBg"), ps.spBg, Str.t("set.spBgSub")) { Connection.setShared("spBg", it) }
+            Divider()
+            BrandSwitchRow(BrandRes.youtube, BrandRes.Dark, Str.t("set.ytBg"), ps.ytBg, Str.t("set.ytBgSub")) { Connection.setShared("ytBg", it) }
         }
 
         // ------------------------------------------------ battery & connection
@@ -434,6 +470,80 @@ private fun Stepper(title: String, value: Int, onChange: (Int) -> Unit) {
         Text("$value°C", color = C.temp(value.toFloat()), fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(64.dp).padding(horizontal = 6.dp), textAlign = TextAlign.Center)
         Box(Modifier.size(34.dp).bounceClick { onChange((value + 5).coerceAtMost(105)) }.clip(CircleShape).background(C.Card2), contentAlignment = Alignment.Center) {
             Text("+", color = C.Text, fontSize = 20.sp)
+        }
+    }
+}
+
+
+// ====================================================================== notch edge light
+private val GlowPalette = listOf(
+    "#0A84FF", "#64D2FF", "#FFFFFF", "#5E5CE6", "#BF5AF2", "#FF375F",
+    "#FF453A", "#FF9F0A", "#FFD60A", "#30D158", "#40C8E0", "#8E8E93"
+)
+
+private fun hexColor(h: String): Color = try { Color(android.graphics.Color.parseColor(h)) } catch (_: Exception) { Color.White }
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun GlowSettings(ps: PcSettings) {
+    val modes = listOf("off" to Str.t("set.glowOff"), "solid" to Str.t("set.glowSolid"), "flow" to Str.t("set.glowFlow"), "rgb" to "RGB", "album" to Str.t("set.glowAlbum"))
+    IconRow(Icons.Rounded.AutoAwesome, C.Blue, Str.t("set.glow"), Str.t("set.glowSub"), below = true) {
+        Column {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                modes.forEach { (id, label) -> Chip(label, ps.notchGlow == id) { Connection.setShared("notchGlow", id) } }
+            }
+            val cols = ps.glowColors.split(",").filter { it.length == 7 }.ifEmpty { listOf("#0A84FF", "#FFFFFF") }
+            if (ps.notchGlow == "solid" || ps.notchGlow == "flow") {
+                val current = if (ps.notchGlow == "solid") cols.take(1) else cols
+                Text(Str.t("set.glowColors"), color = C.Text, fontSize = 15.sp, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
+                // current colours as a preview bar + swatches (tap a swatch to remove it)
+                Box(
+                    Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp))
+                        .background(if (current.size > 1) Brush.horizontalGradient(current.map(::hexColor)) else Brush.horizontalGradient(listOf(hexColor(current[0]), hexColor(current[0]))))
+                )
+                Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    current.forEachIndexed { i, h ->
+                        Box(
+                            Modifier.size(34.dp).clip(CircleShape).background(hexColor(h)).border(2.dp, Color.White.copy(alpha = 0.35f), CircleShape)
+                                .bounceClick { if (ps.notchGlow == "flow" && current.size > 2) Connection.setShared("glowColors", current.filterIndexed { j, _ -> j != i }.joinToString(",")) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (ps.notchGlow == "flow" && current.size > 2) Icon(Icons.Rounded.Close, null, tint = Color.Black.copy(alpha = 0.55f), modifier = Modifier.size(14.dp))
+                        }
+                    }
+                }
+                Hint(if (ps.notchGlow == "flow") Str.t("set.glowPickFlow") else Str.t("set.glowPickSolid"), Modifier.padding(top = 4.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 2.dp)) {
+                    GlowPalette.forEach { h ->
+                        Box(
+                            Modifier.size(32.dp).clip(CircleShape).background(hexColor(h))
+                                .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
+                                .bounceClick(pressedScale = 0.85f) {
+                                    val next = if (ps.notchGlow == "solid") listOf(h)
+                                               else if (current.size >= 4) current.drop(1) + h else current + h
+                                    Connection.setShared("glowColors", next.joinToString(","))
+                                }
+                        )
+                    }
+                }
+            }
+            if (ps.notchGlow != "off") {
+                if (ps.notchGlow != "solid") {
+                    Text(Str.t("set.glowSpeed"), color = C.Text, fontSize = 15.sp, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(10 to Str.t("set.glowSlow"), 6 to Str.t("set.glowNormal"), 3 to Str.t("set.glowFast")).forEach { (v, l) ->
+                            val sel = when { ps.glowSpeed >= 9 -> v == 10; ps.glowSpeed <= 4 -> v == 3; else -> v == 6 }
+                            Chip(l, sel) { Connection.setShared("glowSpeed", v) }
+                        }
+                    }
+                }
+                Text(Str.t("set.glowStrength"), color = C.Text, fontSize = 15.sp, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("low" to Str.t("set.glowLow"), "mid" to Str.t("set.glowNormal"), "high" to Str.t("set.glowHigh")).forEach { (v, l) ->
+                        Chip(l, ps.glowStrength == v) { Connection.setShared("glowStrength", v) }
+                    }
+                }
+            }
         }
     }
 }

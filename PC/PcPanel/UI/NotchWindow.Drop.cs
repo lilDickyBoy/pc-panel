@@ -38,12 +38,14 @@ namespace PcPanel.UI
         IntPtr _dragHook;
         readonly DispatcherTimer _dragWatch = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
         readonly DispatcherTimer _leaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(140) };
-        DropStrip _strip;
         static readonly string[] ImageExt = { ".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif", ".bmp", ".tif", ".tiff", ".avif", ".jfif" };
 
         static bool IsImage(string name) => ImageExt.Contains(System.IO.Path.GetExtension(name ?? "").ToLowerInvariant());
         static bool DropEnabled => App.Settings.NotchEnabled && App.Settings.NotchDrop;
         static Session Phone => App.Server?.Sessions.FirstOrDefault(s => s.Authed);
+
+        readonly DispatcherTimer _dragPoll = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(80) };
+        string[] _hoverGuess;
 
         void InitDrop()
         {
@@ -54,13 +56,44 @@ namespace PcPanel.UI
             _dragWatch.Tick += DragWatchTick;
             _leaveTimer.Tick += (s, e) => { _leaveTimer.Stop(); if (_phase == DropPhase.Hover) SetPhase(DropPhase.Peek); };
 
-            DropCatcher.DragEnter += OnDropDrag;
-            DropCatcher.DragOver += OnDropDrag;
-            DropCatcher.DragLeave += (s, e) => { _leaveTimer.Stop(); _leaveTimer.Start(); e.Handled = true; };
-            DropCatcher.Drop += OnDrop;
+            // PC Panel runs as administrator, and Windows blocks normal (OLE) drag & drop from Explorer into
+            // elevated windows. The classic WM_DROPFILES drop still works once these messages are allowed through.
+            Native.ChangeWindowMessageFilterEx(_hwnd, Native.WM_DROPFILES, Native.MSGFLT_ALLOW, IntPtr.Zero);
+            Native.ChangeWindowMessageFilterEx(_hwnd, Native.WM_COPYDATA, Native.MSGFLT_ALLOW, IntPtr.Zero);
+            Native.ChangeWindowMessageFilterEx(_hwnd, Native.WM_COPYGLOBALDATA, Native.MSGFLT_ALLOW, IntPtr.Zero);
+            Native.DragAcceptFiles(_hwnd, true);
+            HwndSource.FromHwnd(_hwnd)?.AddHook(DropHook);
 
-            _strip = new DropStrip(this);
-            Closed += (s, e) => { try { Native.UnhookWinEvent(_dragHook); } catch { } _strip?.Close(); };
+            // Some apps don't report drag starts; Explorer always shows its drag image window while dragging.
+            _dragPoll.Tick += (s, e) =>
+            {
+                if (_phase != DropPhase.None || !DropEnabled || !Native.LeftButtonDown) return;
+                var img = Native.FindWindow("SysDragImage", null);
+                if (img != IntPtr.Zero && Native.IsWindowVisible(img)) DragBegan();
+            };
+            _dragPoll.Start();
+            Closed += (s, e) => { try { Native.UnhookWinEvent(_dragHook); } catch { } };
+        }
+
+        IntPtr DropHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            if (msg != Native.WM_DROPFILES) return IntPtr.Zero;
+            handled = true;
+            var paths = new List<string>();
+            try
+            {
+                uint n = Native.DragQueryFile(wParam, 0xFFFFFFFF, null, 0);
+                for (uint i = 0; i < n; i++)
+                {
+                    var sb = new System.Text.StringBuilder(1024);
+                    Native.DragQueryFile(wParam, i, sb, (uint)sb.Capacity);
+                    paths.Add(sb.ToString());
+                }
+            }
+            catch (Exception ex) { Log.Write("Drop: " + ex.Message); }
+            finally { Native.DragFinish(wParam); }
+            Dispatcher.BeginInvoke(new Action(() => OnFilesDropped(paths.ToArray())));
+            return IntPtr.Zero;
         }
 
         // ================================================================== drag detection
@@ -77,6 +110,7 @@ namespace PcPanel.UI
             if (_phase == DropPhase.None)
             {
                 _peekNear = false;
+                _hoverGuess = ExplorerSelection();
                 SetPhase(DropPhase.Peek);
             }
             _upTicks = 0;
@@ -93,6 +127,17 @@ namespace PcPanel.UI
                 return;
             }
             _upTicks = 0;
+            if (!Native.GetCursorPos(out var cp)) return;
+            bool over = CursorOverCatcher(cp);
+            if (over && _phase == DropPhase.Peek)
+            {
+                _leaveTimer.Stop();
+                DescribeHover(_hoverGuess);
+                SetPhase(DropPhase.Hover);
+                return;
+            }
+            if (!over && _phase == DropPhase.Hover) { if (!_leaveTimer.IsEnabled) _leaveTimer.Start(); return; }
+            if (over) { _leaveTimer.Stop(); return; }
             if (_phase == DropPhase.Peek && Native.GetCursorPos(out var p))
             {
                 // grow a little as the cursor gets close – feels "magnetic"
@@ -135,61 +180,39 @@ namespace PcPanel.UI
             _ => Mode.Hidden
         };
 
-        // ================================================================== WPF drop target
-        void OnDropDrag(object sender, DragEventArgs e)
+        // ================================================================== drop target
+        bool CursorOverCatcher(Native.POINT p)
         {
-            _leaveTimer.Stop();
-            if (_phase == DropPhase.None || _phase == DropPhase.Peek)
+            try
             {
-                if (_phase == DropPhase.None) { if (!DropEnabled) return; _dragWatch.Start(); }
-                DescribeHover(e.Data);
-                SetPhase(DropPhase.Hover);
+                if (DropCatcher.Visibility != Visibility.Visible) return false;
+                var tl = DropCatcher.PointToScreen(new Point(0, 0));
+                var br = DropCatcher.PointToScreen(new Point(DropCatcher.ActualWidth, DropCatcher.ActualHeight));
+                return p.X >= tl.X && p.X <= br.X && p.Y >= tl.Y - 2 && p.Y <= br.Y;
             }
-            e.Effects = Phone != null && HasPayload(e.Data) ? DragDropEffects.Copy : DragDropEffects.None;
-            e.Handled = true;
+            catch { return false; }
         }
 
-        void OnDrop(object sender, DragEventArgs e)
+        void OnFilesDropped(string[] paths)
         {
             _leaveTimer.Stop();
-            e.Handled = true;
-            var phone = Phone;
-            List<Item> items = null;
-            try { items = Collect(e.Data); } catch (Exception ex) { Log.Write("Drop: " + ex.Message); }
             _dragWatch.Stop();
-            if (phone == null || items == null || items.Count == 0)
+            var phone = Phone;
+            var items = paths.Where(File.Exists).Select(f => new Item { Path = f, Name = System.IO.Path.GetFileName(f), Image = IsImage(f) }).ToList();
+            if (phone == null || items.Count == 0)
             {
                 SetPhase(DropPhase.None);
                 if (phone == null) ShowResult(false, Loc.T("pc.drop.noPhone"));
                 return;
             }
-            e.Effects = DragDropEffects.Copy;
             StartSending(phone, items);
         }
 
-        static bool HasPayload(IDataObject d) =>
-            d.GetDataPresent(DataFormats.FileDrop) || d.GetDataPresent("FileGroupDescriptorW") || d.GetDataPresent(DataFormats.Bitmap);
-
-        void DescribeHover(IDataObject d)
+        /// <summary>Hover text. We can't see what is being dragged until it is dropped, so we peek at
+        /// Explorer's selection (that's what you're dragging) when possible.</summary>
+        void DescribeHover(string[] guess)
         {
             var phone = Phone;
-            int count = 1; bool allImages = true;
-            try
-            {
-                if (d.GetDataPresent(DataFormats.FileDrop) && d.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0)
-                {
-                    var real = files.Where(File.Exists).ToArray();
-                    count = Math.Max(1, real.Length);
-                    allImages = real.Length > 0 && real.All(IsImage);
-                }
-                else if (d.GetDataPresent("FileGroupDescriptorW"))
-                {
-                    var names = DescriptorNames(d);
-                    allImages = names.Count == 0 || names.All(IsImage);
-                }
-            }
-            catch { }
-
             if (phone == null)
             {
                 HoverGlyph.Text = Glyph.Phone;
@@ -199,11 +222,47 @@ namespace PcPanel.UI
                 return;
             }
             HoverGlyph.Foreground = Brushes.White;
-            HoverGlyph.Text = allImages ? Glyph.Photo : Glyph.File;
-            HoverTitle.Text = allImages
-                ? (count == 1 ? Loc.T("pc.drop.image") : Loc.F("pc.drop.images", count))
+            var files = (guess ?? Array.Empty<string>()).Where(File.Exists).ToArray();
+            bool known = files.Length > 0;
+            bool allImages = known && files.All(IsImage);
+            int count = Math.Max(1, files.Length);
+            HoverGlyph.Text = allImages || !known ? Glyph.Photo : Glyph.File;
+            HoverTitle.Text = !known ? Loc.T("pc.drop.image")
+                : allImages ? (count == 1 ? Loc.T("pc.drop.image") : Loc.F("pc.drop.images", count))
                 : (count == 1 ? Loc.T("pc.drop.file") : Loc.F("pc.drop.files", count));
-            HoverSub.Text = Loc.F(allImages ? "pc.drop.toGallery" : "pc.drop.toDownloads", phone.DeviceName);
+            HoverSub.Text = Loc.F(allImages || !known ? "pc.drop.toGallery" : "pc.drop.toDownloads", phone.DeviceName);
+        }
+
+        /// <summary>Files selected in the foreground Explorer window (= what is being dragged). Best effort.</summary>
+        static string[] ExplorerSelection()
+        {
+            string[] result = null;
+            var t = new System.Threading.Thread(() =>
+            {
+                try
+                {
+                    var fg = Native.GetForegroundWindow();
+                    dynamic shell = Activator.CreateInstance(Type.GetTypeFromProgID("Shell.Application"));
+                    foreach (dynamic w in shell.Windows())
+                    {
+                        try
+                        {
+                            if (new IntPtr((long)w.HWND) != fg) continue;
+                            var list = new List<string>();
+                            foreach (dynamic it in w.Document.SelectedItems()) list.Add((string)it.Path);
+                            result = list.ToArray();
+                            break;
+                        }
+                        catch { }
+                    }
+                }
+                catch { }
+            });
+            t.SetApartmentState(System.Threading.ApartmentState.STA);
+            t.IsBackground = true;
+            t.Start();
+            t.Join(350);
+            return result;
         }
 
         void UpdatePeek()
@@ -218,70 +277,6 @@ namespace PcPanel.UI
 
         // ================================================================== collecting what was dropped
         sealed class Item { public string Path; public string Name; public bool Temp; public bool Image; }
-
-        static List<Item> Collect(IDataObject d)
-        {
-            var list = new List<Item>();
-            if (d.GetDataPresent(DataFormats.FileDrop) && d.GetData(DataFormats.FileDrop) is string[] files)
-            {
-                foreach (var f in files.Where(File.Exists))
-                    list.Add(new Item { Path = f, Name = System.IO.Path.GetFileName(f), Image = IsImage(f) });
-                if (list.Count > 0) return list;
-            }
-            if (d.GetDataPresent("FileGroupDescriptorW"))
-            {
-                // virtual file, e.g. an image dragged out of a browser
-                var names = DescriptorNames(d);
-                if (names.Count > 0 && d.GetData("FileContents") is MemoryStream ms)
-                {
-                    var name = names[0];
-                    var path = TempPath(name);
-                    File.WriteAllBytes(path, ms.ToArray());
-                    list.Add(new Item { Path = path, Name = name, Temp = true, Image = IsImage(name) });
-                    return list;
-                }
-            }
-            if (d.GetDataPresent(DataFormats.Bitmap) && d.GetData(DataFormats.Bitmap) is BitmapSource bmp)
-            {
-                var name = "Image " + DateTime.Now.ToString("yyyy-MM-dd HH.mm.ss") + ".png";
-                var path = TempPath(name);
-                using (var fs = File.Create(path))
-                {
-                    var enc = new PngBitmapEncoder();
-                    enc.Frames.Add(BitmapFrame.Create(bmp));
-                    enc.Save(fs);
-                }
-                list.Add(new Item { Path = path, Name = name, Temp = true, Image = true });
-            }
-            return list;
-        }
-
-        static List<string> DescriptorNames(IDataObject d)
-        {
-            var names = new List<string>();
-            if (d.GetData("FileGroupDescriptorW") is not MemoryStream ms) return names;
-            var b = ms.ToArray();
-            if (b.Length < 4) return names;
-            int count = BitConverter.ToInt32(b, 0);
-            const int size = 592, nameOffset = 72;
-            for (int i = 0; i < count && 4 + (i + 1) * size <= b.Length; i++)
-            {
-                int o = 4 + i * size + nameOffset;
-                var n = System.Text.Encoding.Unicode.GetString(b, o, 520);
-                int z = n.IndexOf('\0');
-                if (z >= 0) n = n.Substring(0, z);
-                if (!string.IsNullOrWhiteSpace(n)) names.Add(n);
-            }
-            return names;
-        }
-
-        static string TempPath(string name)
-        {
-            var dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "PC Panel", "drop-" + Guid.NewGuid().ToString("N").Substring(0, 8));
-            Directory.CreateDirectory(dir);
-            foreach (var c in System.IO.Path.GetInvalidFileNameChars()) name = name.Replace(c, '_');
-            return System.IO.Path.Combine(dir, name);
-        }
 
         // ================================================================== sending
         void StartSending(Session phone, List<Item> items)
@@ -429,66 +424,4 @@ namespace PcPanel.UI
         }
     }
 
-    /// <summary>
-    /// A 3 px strip along the top-centre edge. Some apps (browsers) don't report drag starts, so when the
-    /// cursor reaches the top edge while dragging, this wakes the notch. It is click-through unless the
-    /// left button is held, so normal clicks at the very top of the screen are never blocked.
-    /// </summary>
-    sealed class DropStrip : Window
-    {
-        readonly NotchWindow _notch;
-        readonly DispatcherTimer _poll = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(60) };
-        IntPtr _hwnd;
-        bool _transparent = true;
-
-        public DropStrip(NotchWindow notch)
-        {
-            _notch = notch;
-            WindowStyle = WindowStyle.None;
-            AllowsTransparency = true;
-            Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0));
-            Topmost = true;
-            ShowInTaskbar = false;
-            ShowActivated = false;
-            ResizeMode = ResizeMode.NoResize;
-            Focusable = false;
-            Width = 460; Height = 3;
-            AllowDrop = true;
-            Title = "PC Panel drop strip";
-            SourceInitialized += (s, e) =>
-            {
-                _hwnd = new WindowInteropHelper(this).Handle;
-                var ex = (long)Native.GetWindowLongPtr(_hwnd, Native.GWL_EXSTYLE);
-                ex |= Native.WS_EX_TOOLWINDOW | Native.WS_EX_NOACTIVATE | Native.WS_EX_TRANSPARENT;
-                Native.SetWindowLongPtr(_hwnd, Native.GWL_EXSTYLE, (IntPtr)ex);
-            };
-            DragEnter += (s, e) => { _notch.DragBegan(); e.Effects = DragDropEffects.None; e.Handled = true; };
-            DragOver += (s, e) => { e.Effects = DragDropEffects.None; e.Handled = true; };
-            _poll.Tick += (s, e) => Poll();
-            Place();
-            Show();
-            _poll.Start();
-            Microsoft.Win32.SystemEvents.DisplaySettingsChanged += (s, e) => Dispatcher.BeginInvoke(new Action(Place));
-        }
-
-        void Place()
-        {
-            Left = (SystemParameters.PrimaryScreenWidth - Width) / 2;
-            Top = 0;
-        }
-
-        void Poll()
-        {
-            if (_hwnd == IntPtr.Zero) return;
-            bool enabled = App.Settings.NotchEnabled && App.Settings.NotchDrop;
-            // only catch the mouse while a button is held (i.e. something might be dragged)
-            bool wantTransparent = !(enabled && Native.LeftButtonDown);
-            if (wantTransparent == _transparent) return;
-            _transparent = wantTransparent;
-            var ex = (long)Native.GetWindowLongPtr(_hwnd, Native.GWL_EXSTYLE);
-            ex = wantTransparent ? ex | Native.WS_EX_TRANSPARENT : ex & ~(long)Native.WS_EX_TRANSPARENT;
-            Native.SetWindowLongPtr(_hwnd, Native.GWL_EXSTYLE, (IntPtr)ex);
-            if (!wantTransparent) Topmost = true;
-        }
-    }
 }

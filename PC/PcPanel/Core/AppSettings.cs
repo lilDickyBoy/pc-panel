@@ -32,6 +32,12 @@ namespace PcPanel.Core
         public bool NotchCalls { get; set; } = true;
         public bool NotchDrop { get; set; } = true;
         public bool NotchCharging { get; set; } = true;
+        public bool NotchBluetooth { get; set; } = true;
+        public string NotchGlow { get; set; } = "flow";            // off | solid | flow | rgb | album
+        public string NotchGlowColors { get; set; } = "#0A84FF,#FFFFFF";
+        public int NotchGlowSpeed { get; set; } = 6;               // seconds per cycle
+        public string NotchGlowStrength { get; set; } = "mid";     // low | mid | high
+        public bool Lyrics { get; set; } = true;
 
         // ---- features
         public bool Sounds { get; set; } = true;
@@ -42,6 +48,9 @@ namespace PcPanel.Core
         public bool GameMode { get; set; } = true;
         public bool TempHistory { get; set; } = true;
         public bool FanControl { get; set; } = true;
+        public bool ShotToPhone { get; set; } = true;
+        public bool SecurityAlerts { get; set; } = true;
+        public bool DownloadAlerts { get; set; } = true;
 
         // ---- music
         public string MusicSource { get; set; } = "spotify"; // spotify | youtube
@@ -49,6 +58,8 @@ namespace PcPanel.Core
         public string SpotifyRefresh { get; set; } = "";     // DPAPI protected, base64
         public string SpotifyUser { get; set; } = "";
         public string YouTubeKey { get; set; } = "";
+        public bool SpotifyBackground { get; set; } = true;   // start Spotify minimised
+        public bool YouTubeBackground { get; set; } = false;  // keep the browser behind the current window
 
         public static string Dir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PC Panel");
         static string OldDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MobiLink");

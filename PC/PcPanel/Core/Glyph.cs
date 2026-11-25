@@ -29,6 +29,12 @@ namespace PcPanel.Core
         public static readonly string Folder = G(0xE8B7);
         public static readonly string Download = G(0xE896);
         public static readonly string Upload = G(0xE898);
+        public static readonly string Bluetooth = G(0xE702);
+        public static readonly string Light = G(0xE706);
+        public static readonly string Lyrics = G(0xE8BD);
+        public static readonly string History = G(0xE81C);
+        public static readonly string Unlock = G(0xE785);
+        public static readonly string Add = G(0xE710);
         public static readonly string Photo = G(0xE91B);
         public static readonly string CheckBold = G(0xE73E);
         public static readonly string Send = G(0xE724);

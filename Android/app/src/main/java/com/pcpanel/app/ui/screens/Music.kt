@@ -112,8 +112,9 @@ fun MusicBrowser() {
                 Text(Connection.outputName.ifBlank { Str.t("tools.sound") }, color = C.Text, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp).width(110.dp))
             }
         }
-        Segmented(listOf("Spotify", "YouTube"), if (src == "youtube") 1 else 0, Modifier.fillMaxWidth()) {
-            src = if (it == 1) "youtube" else "spotify"
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            com.pcpanel.app.ui.components.BrandChip(com.pcpanel.app.ui.components.BrandRes.spotify, "Spotify", src != "youtube", Color(0xFF1ED760), Modifier.weight(1f)) { src = "spotify" }
+            com.pcpanel.app.ui.components.BrandChip(com.pcpanel.app.ui.components.BrandRes.youtube, "YouTube", src == "youtube", Color(0xFFFF0033), Modifier.weight(1f)) { src = "youtube" }
         }
         Spacer(Modifier.height(10.dp))
         // ---------------- search field
@@ -176,9 +177,7 @@ fun MusicBrowser() {
 private fun SpotifyConnectCard(hasClient: Boolean) {
     GroupCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(44.dp).clip(CircleShape).background(SpotifyGreen), contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.MusicNote, null, tint = Color.Black, modifier = Modifier.size(26.dp))
-            }
+            com.pcpanel.app.ui.components.BrandTile(com.pcpanel.app.ui.components.BrandRes.spotify, Color(0xFF151517), 44.dp, 0.14f)
             Column(Modifier.padding(start = 12.dp).weight(1f)) {
                 Text("Spotify", color = C.Text, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                 Text(if (hasClient) Str.t("music.connectSub") else Str.t("music.needSetup"), color = C.Text2, fontSize = 13.sp, lineHeight = 17.sp)

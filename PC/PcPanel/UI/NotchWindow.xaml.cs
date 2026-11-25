@@ -27,7 +27,7 @@ namespace PcPanel.UI
     /// </summary>
     public partial class NotchWindow : Window
     {
-        enum Mode { Hidden, Idle, Music, Countdown, Info, Volume, Notif, Call, DropPeek, DropHover, Sending }
+        enum Mode { Hidden, Idle, Music, Countdown, Info, Volume, Notif, Call, DropPeek, DropHover, Sending, Bluetooth }
 
         const double CW = 312, CH = 38, CR = 19;     // compact music
         const double EW = 470, EH = 178, ER = 34;    // expanded music
@@ -45,6 +45,8 @@ namespace PcPanel.UI
         int _inTicks, _outTicks;
         bool _wasPlaying;
         DateTime _pausedAt = DateTime.MinValue;
+        const double PauseGraceSec = 0.2;   // how long the player stays after you pause
+        readonly DispatcherTimer _pauseHideTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(230) };
         FrameworkElement _currentPanel;
         FrameworkElement[] _panels;
 
@@ -70,7 +72,7 @@ namespace PcPanel.UI
         {
             InitializeComponent();
             _accent = (SolidColorBrush)Resources["AccentBrush"];
-            _panels = new FrameworkElement[] { IdlePanel, CompactPanel, ExpandedPanel, InfoPanel, VolumePanel, NotifPanel, CallPanel, CountdownPanel, DropPeekPanel, DropHoverPanel, SendPanel };
+            _panels = new FrameworkElement[] { IdlePanel, CompactPanel, ExpandedPanel, InfoPanel, VolumePanel, NotifPanel, CallPanel, CountdownPanel, DropPeekPanel, DropHoverPanel, SendPanel, LyricsPanel, BtPanel };
             foreach (var p in _panels)
             {
                 p.RenderTransformOrigin = new Point(0.5, 0.5);
@@ -103,6 +105,9 @@ namespace PcPanel.UI
             _spinClock = spin.CreateClock();
             RotC.ApplyAnimationClock(RotateTransform.AngleProperty, _spinClock);
             RotE.ApplyAnimationClock(RotateTransform.AngleProperty, _spinClock);
+            RotL.ApplyAnimationClock(RotateTransform.AngleProperty, _spinClock);
+            InitLyrics();
+            _pauseHideTimer.Tick += (s, e) => { _pauseHideTimer.Stop(); Refresh(); };
             _spinClock.Controller.Pause();
 
             _hoverTimer.Tick += HoverTick;
@@ -152,11 +157,14 @@ namespace PcPanel.UI
                 EarL.Visibility = EarR.Visibility = Visibility.Visible;
                 IslandShape.Effect = null;
             }
+            ApplyGlow();
         }
 
         // ================================================================== public API (UI thread)
         public void SettingsChanged()
         {
+            var m = MediaService.I;
+            LyricsService.I.OnTrack(m.Title, m.Artist, m.Album, m.DurationSec);
             ApplyStyle();
             Refresh(force: true);
         }
@@ -172,13 +180,15 @@ namespace PcPanel.UI
         public void OnMediaChanged()
         {
             var m = MediaService.I;
-            if (_wasPlaying && !m.Playing) _pausedAt = DateTime.Now;
+            if (_wasPlaying && !m.Playing) { _pausedAt = DateTime.Now; _pauseHideTimer.Stop(); _pauseHideTimer.Start(); }
             _wasPlaying = m.Playing;
             UpdateMusicContent();
             if (_shown == Mode.Music)
             {
                 if (m.Playing) { _spinClock.Controller.Resume(); _barsTimer.Start(); }
                 else _spinClock.Controller.Pause();
+                // switch between the compact player and the lyrics view when play state / lyrics change
+                if (!_expanded && LyricsActive != (_currentPanel == LyricsPanel)) Go(Mode.Music, false);
             }
             Refresh();
         }
@@ -230,11 +240,15 @@ namespace PcPanel.UI
             ShowTransient(Mode.Volume, 1.6);
         }
 
-        public void ShowNotification(BitmapSource icon, string app, string title, string text)
+        public void ShowNotification(BitmapSource icon, string app, string title, string text, string package = null)
         {
             if (!CanShowTransient() || _transient == Mode.Call) return;
-            NotifIcon.Source = icon;
-            NotifGlyph.Text = icon == null ? Glyph.Bell : "";
+            // WhatsApp / Discord / Spotify / YouTube get their real logo on their brand colour
+            var logo = Brand.ForApp((package ?? "") + " " + (app ?? ""));
+            NotifLogo.Source = logo;
+            NotifIcon.Source = logo != null ? null : icon;
+            NotifTile.Background = new SolidColorBrush(logo != null ? Brand.TileFor((package ?? "") + " " + (app ?? "")) : Color.FromRgb(0x2C, 0x2C, 0x2E));
+            NotifGlyph.Text = icon == null && logo == null ? Glyph.Bell : "";
             NotifTitle.Text = string.IsNullOrWhiteSpace(title) ? app : title;
             NotifApp.Text = string.IsNullOrWhiteSpace(title) ? "" : app;
             NotifText.Text = (text ?? "").Length > 160 ? text.Substring(0, 160) + "…" : text;
@@ -276,7 +290,7 @@ namespace PcPanel.UI
             var m = MediaService.I;
             if (!s.NotchEnabled || !Allowed()) return Mode.Hidden;
             if (CountdownService.I.Active) return Mode.Countdown;
-            if (m.HasMedia && (m.Playing || _expanded || (DateTime.Now - _pausedAt).TotalSeconds < 4)) return Mode.Music;
+            if (m.HasMedia && (m.Playing || _expanded || (DateTime.Now - _pausedAt).TotalSeconds < PauseGraceSec)) return Mode.Music;
             if (s.NotchMode == "always") return Mode.Idle;
             return Mode.Hidden;
         }
@@ -302,6 +316,7 @@ namespace PcPanel.UI
             _shown = target;
             if (target != Mode.Music && _expanded) { _expanded = false; SetClickThrough(true); _progressTimer.Stop(); }
             if (target != Mode.Countdown) _cdTimer.Stop();
+            if (target != Mode.Music) _lyricTimer.Stop();
             if (target != Mode.DropPeek && target != Mode.DropHover) StopDropLoops();
 
             switch (target)
@@ -315,8 +330,8 @@ namespace PcPanel.UI
                     ShowPanel(IdlePanel, sameContentChanged);
                     break;
                 case Mode.Music:
-                    if (_expanded) { Morph(EW, EH, ER); ShowPanel(ExpandedPanel, false); }
-                    else { Morph(CW, CH, CR); ShowPanel(CompactPanel, false); }
+                    if (_expanded) { _lyricTimer.Stop(); Morph(EW, EH, ER); ShowPanel(ExpandedPanel, false); }
+                    else ShowLyricsOrCompact();
                     if (MediaService.I.Playing) _spinClock.Controller.Resume(); else _spinClock.Controller.Pause();
                     _barsTimer.Start();
                     RestartMarquee(TitleHostC, TitleC);
@@ -344,6 +359,11 @@ namespace PcPanel.UI
                 case Mode.Call:
                     Morph(KW, KH, KR);
                     ShowPanel(CallPanel, sameContentChanged);
+                    break;
+                case Mode.Bluetooth:
+                    BtPanel.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                    Morph(Math.Clamp(BtPanel.DesiredSize.Width + 40, 260, 500), 58, 29);
+                    ShowPanel(BtPanel, sameContentChanged);
                     break;
                 case Mode.DropPeek:
                     UpdatePeek();
@@ -395,12 +415,11 @@ namespace PcPanel.UI
             _expanded = false;
             SetClickThrough(true);
             _progressTimer.Stop();
-            if (!MediaService.I.Playing) _pausedAt = DateTime.Now;
+            if (!MediaService.I.Playing) { _pausedAt = DateTime.Now; _pauseHideTimer.Stop(); _pauseHideTimer.Start(); }
             var target = ComputeBase();
             if (target == Mode.Music)
             {
-                Morph(CW, CH, CR);
-                ShowPanel(CompactPanel, false);
+                ShowLyricsOrCompact();
                 RestartMarquee(TitleHostC, TitleC);
             }
             else Go(target, false);
@@ -545,6 +564,10 @@ namespace PcPanel.UI
             }
             ArtistE.Text = string.IsNullOrWhiteSpace(m.Artist) ? Loc.T("pc.notch.unknown") : m.Artist;
             AppE.Text = (m.Playing ? "" : Loc.T("pc.notch.paused") + "  ·  ") + m.AppDisplayName;
+            var logo = m.AppId.IndexOf("spotify", StringComparison.OrdinalIgnoreCase) >= 0 ? Brand.Get("spotify_white")
+                : m.Title.IndexOf("youtube", StringComparison.OrdinalIgnoreCase) >= 0 || m.AppDisplayName == "YouTube" ? Brand.Get("youtube") : null;
+            AppLogoE.Source = logo;
+            AppLogoE.Visibility = logo != null ? Visibility.Visible : Visibility.Collapsed;
             TitleC.Foreground = m.Playing ? Brushes.White : new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9F));
             GPlay.Text = m.Playing ? Glyph.Pause : Glyph.Play;
 
@@ -555,17 +578,18 @@ namespace PcPanel.UI
                 {
                     var b = new ImageBrush(m.Art) { Stretch = Stretch.UniformToFill };
                     b.Freeze();
-                    ArtC.Fill = b; ArtE.Fill = b;
+                    ArtC.Fill = b; ArtE.Fill = b; ArtL.Fill = b;
                     NoArtC.Visibility = NoArtE.Visibility = Visibility.Collapsed;
-                    GroovesC.Opacity = GroovesE.Opacity = 0.35; // let the real cover show through
+                    GroovesC.Opacity = GroovesE.Opacity = GroovesL.Opacity = 0.16; // real cover, with just a hint of vinyl grooves
                 }
                 else
                 {
-                    ArtC.Fill = (Brush)Resources["NoArtBrush"]; ArtE.Fill = ArtC.Fill;
+                    ArtC.Fill = (Brush)Resources["NoArtBrush"]; ArtE.Fill = ArtC.Fill; ArtL.Fill = ArtC.Fill;
                     NoArtC.Visibility = NoArtE.Visibility = Visibility.Visible;
-                    GroovesC.Opacity = GroovesE.Opacity = 1;
+                    GroovesC.Opacity = GroovesE.Opacity = GroovesL.Opacity = 1;
                 }
                 _accent.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(m.Accent, TimeSpan.FromMilliseconds(450)));
+                if (App.Settings.NotchGlow == "album") ApplyGlow();
             }
             if (_expanded) UpdateProgress();
         }

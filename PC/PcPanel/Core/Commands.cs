@@ -256,6 +256,8 @@ namespace PcPanel.Core
                 case "fileChunk": await FileService.OnChunk(s, m); break;
                 case "fileEnd": await FileService.OnEnd(s, m); break;
                 case "fileAck": FileService.OnAck(m); break;
+                case "activityGet": await s.SendAsync(ActivityService.I.ListMessage()); break;
+                case "activityClear": ActivityService.I.Clear(); break;
 
                 // ------------------------------------------------ countdown in the notch
                 case "countdown":

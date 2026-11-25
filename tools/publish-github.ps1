@@ -6,7 +6,7 @@ $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $Root    = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $Repo    = 'pc-panel'
-$Version = '2.1.0'
+$Version = '2.2.0'
 $Tag     = "v$Version"
 $TokenFile = Join-Path $env:APPDATA 'PC Panel\github-token.bin'
 Add-Type -AssemblyName System.Security
@@ -145,9 +145,18 @@ $notes = @"
 ## PC Panel $Version
 
 **What's new**
-- Drag an image (or any file) to the top of the screen: the notch slides in, grows when you hover it and sends the file to your phone with a progress bar. Images land straight in the phone's gallery.
-- Brand-new charging dashboard on the phone: neon gauges, glass clock and a music bar that springs in when music starts
-- Fixed Spotify login (``redirect_uri: Not present``)
+- The notch now spins the real album cover like a vinyl record
+- Edge light: a glowing line around the notch (solid, flowing gradient like blue → white → blue, or album colour), set from the PC or the phone
+- Synced lyrics: while music plays the notch widens and the lyrics slide in line by line (no account or API key needed)
+- Bluetooth: when headphones connect, the notch shows the Bluetooth icon and the device name
+- Screenshots you take on the PC go straight to the phone's gallery
+- Security alerts + activity log: see exactly when (hour:minute) your PC was turned on, unlocked, or a wrong password was typed
+- Download finished alerts for browsers, Steam and Epic Games (no setup)
+- Open Spotify / YouTube in the background, real brand logos, notch hides 0.2 s after you pause
+- Drag-to-notch fixed (and can be turned off); no more admin prompt every time you open PC Panel
+- Phone: default disconnect delay is now 1 minute
+
+**If Play Protect blocks the install:** tap **More details → Install anyway**. If there's no such button: Play Store → profile picture → **Play Protect** → ⚙ → turn off *Scan apps with Play Protect*, install, then turn it back on.
 
 **Download**
 - ``PC-Panel.apk`` - Android phone app (installs over the old version as an update)

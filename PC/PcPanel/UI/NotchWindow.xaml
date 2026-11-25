@@ -6,7 +6,7 @@
         Topmost="True" ShowInTaskbar="False" ShowActivated="False" ResizeMode="NoResize"
         Focusable="False" Width="660" Height="270" UseLayoutRounding="True"
         TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType"
-        FontFamily="{StaticResource UiFont}" AllowDrop="True">
+        FontFamily="{StaticResource UiFont}">
     <Window.Resources>
         <SolidColorBrush x:Key="AccentBrush" Color="#0A84FF"/>
         <LinearGradientBrush x:Key="NoArtBrush" StartPoint="0,0" EndPoint="1,1">
@@ -69,6 +69,9 @@
             <!-- notch: the top part is pushed off-screen so only the bottom corners are round.
                  island: the whole pill is visible. -->
             <Rectangle x:Name="IslandShape" Fill="Black" Margin="0,-40,0,0" RadiusX="19" RadiusY="19"/>
+            <!-- edge light: a thin glowing line around the notch / island (colours set in code) -->
+            <Rectangle x:Name="GlowEdge" Fill="{x:Null}" StrokeThickness="1.4" Margin="0,-40,0,0" IsHitTestVisible="False" Visibility="Collapsed"
+                       RadiusX="{Binding RadiusX, ElementName=IslandShape}" RadiusY="{Binding RadiusY, ElementName=IslandShape}"/>
 
             <Grid ClipToBounds="True">
                 <!-- ============ IDLE (always-on) ============ -->
@@ -109,6 +112,56 @@
                     </StackPanel>
                 </Grid>
 
+                <!-- ============ LYRICS (music playing + synced lyrics found) ============ -->
+                <Grid x:Name="LyricsPanel" Opacity="0" IsHitTestVisible="False" Height="62" VerticalAlignment="Top" Margin="12,0,18,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid Width="40" Height="40" VerticalAlignment="Center">
+                        <Grid RenderTransformOrigin="0.5,0.5">
+                            <Grid.RenderTransform><RotateTransform x:Name="RotL"/></Grid.RenderTransform>
+                            <Ellipse x:Name="ArtL" Fill="{StaticResource NoArtBrush}"/>
+                            <Ellipse x:Name="GroovesL" Fill="{StaticResource Grooves}"/>
+                        </Grid>
+                        <Ellipse Fill="{StaticResource Sheen}" Opacity="0.45"/>
+                        <Ellipse Width="8" Height="8" Fill="Black" Stroke="#66FFFFFF" StrokeThickness="0.7"/>
+                    </Grid>
+                    <Grid x:Name="LyricHost" Grid.Column="1" Margin="13,0,0,0" ClipToBounds="True" Height="56" VerticalAlignment="Center">
+                        <TextBlock x:Name="LyricA" Foreground="White" FontSize="15.5" FontWeight="SemiBold" VerticalAlignment="Top" Margin="0,7,0,0" TextTrimming="CharacterEllipsis" RenderTransformOrigin="0,0.5">
+                            <TextBlock.RenderTransform><TranslateTransform/></TextBlock.RenderTransform>
+                        </TextBlock>
+                        <TextBlock x:Name="LyricB" Foreground="White" FontSize="15.5" FontWeight="SemiBold" VerticalAlignment="Top" Margin="0,7,0,0" TextTrimming="CharacterEllipsis" Opacity="0" RenderTransformOrigin="0,0.5">
+                            <TextBlock.RenderTransform><TranslateTransform/></TextBlock.RenderTransform>
+                        </TextBlock>
+                        <TextBlock x:Name="LyricNext" Foreground="#8E8E93" FontSize="12.5" FontWeight="Medium" VerticalAlignment="Top" Margin="0,31,0,0" TextTrimming="CharacterEllipsis"/>
+                    </Grid>
+                </Grid>
+
+                <!-- ============ BLUETOOTH device connected / disconnected ============ -->
+                <Grid x:Name="BtPanel" Opacity="0" IsHitTestVisible="False" Height="58" VerticalAlignment="Top" Margin="12,0,22,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid Width="40" Height="40" VerticalAlignment="Center">
+                        <Ellipse x:Name="BtRing1" Stroke="#0A84FF" StrokeThickness="2" Opacity="0" RenderTransformOrigin="0.5,0.5">
+                            <Ellipse.RenderTransform><ScaleTransform/></Ellipse.RenderTransform>
+                        </Ellipse>
+                        <Ellipse x:Name="BtRing2" Stroke="#0A84FF" StrokeThickness="2" Opacity="0" RenderTransformOrigin="0.5,0.5">
+                            <Ellipse.RenderTransform><ScaleTransform/></Ellipse.RenderTransform>
+                        </Ellipse>
+                        <Ellipse x:Name="BtDisc" Fill="#260A84FF"/>
+                        <Image x:Name="BtIcon" Width="19" Height="19" RenderTransformOrigin="0.5,0.5" RenderOptions.BitmapScalingMode="HighQuality">
+                            <Image.RenderTransform><ScaleTransform/></Image.RenderTransform>
+                        </Image>
+                    </Grid>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0,0,0">
+                        <TextBlock x:Name="BtName" Foreground="White" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="380"/>
+                        <TextBlock x:Name="BtSub" Foreground="#8E8E93" FontSize="12.5" Margin="0,1,0,0"/>
+                    </StackPanel>
+                </Grid>
+
                 <!-- ============ EXPANDED MUSIC (on hover) ============ -->
                 <Grid x:Name="ExpandedPanel" Opacity="0" IsHitTestVisible="False" Margin="18,16,18,14" Width="434" VerticalAlignment="Top" HorizontalAlignment="Left">
                     <Grid.RowDefinitions>
@@ -143,7 +196,10 @@
                             </TextBlock>
                         </Canvas>
                         <TextBlock x:Name="ArtistE" Foreground="#A1A1A6" FontSize="13.5" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" MaxWidth="292" HorizontalAlignment="Left"/>
-                        <TextBlock x:Name="AppE" Foreground="{StaticResource AccentBrush}" FontSize="11.5" FontWeight="SemiBold" Margin="0,5,0,0" Opacity="0.9"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                            <Image x:Name="AppLogoE" Width="13" Height="13" Margin="0,0,6,0" VerticalAlignment="Center" Visibility="Collapsed" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <TextBlock x:Name="AppE" Foreground="{StaticResource AccentBrush}" FontSize="11.5" FontWeight="SemiBold" Opacity="0.9" VerticalAlignment="Center"/>
+                        </StackPanel>
                     </StackPanel>
 
                     <StackPanel x:Name="BarsE" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top" Margin="0,4,0,0">
@@ -212,10 +268,11 @@
                         <ColumnDefinition Width="44"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <Border Width="42" Height="42" CornerRadius="11" Background="#2C2C2E" VerticalAlignment="Center" ClipToBounds="True">
+                    <Border x:Name="NotifTile" Width="42" Height="42" CornerRadius="11" Background="#2C2C2E" VerticalAlignment="Center" ClipToBounds="True">
                         <Grid>
                             <TextBlock x:Name="NotifGlyph" Style="{StaticResource CtrlGlyph}" FontSize="18"/>
                             <Image x:Name="NotifIcon" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <Image x:Name="NotifLogo" Margin="9" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
                         </Grid>
                     </Border>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0,0,0">
@@ -330,6 +387,6 @@
         <!-- invisible, nearly transparent target that only exists while something is being dragged,
              so the drop zone is a bit bigger than the notch itself -->
         <Border x:Name="DropCatcher" Background="#01000000" Width="560" Height="236" VerticalAlignment="Top" HorizontalAlignment="Center"
-                Visibility="Collapsed" AllowDrop="True"/>
+                Visibility="Collapsed"/>
     </Grid>
 </Window>

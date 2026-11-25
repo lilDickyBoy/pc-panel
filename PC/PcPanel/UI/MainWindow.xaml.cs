@@ -182,7 +182,7 @@ namespace PcPanel.UI
         {
             PageTitle.Text = Loc.T(_pages.First(p => p.id == _page).key);
             PageHost.Children.Clear();
-            _qrImage = null; _addrText = null; _transferText = null;
+            _qrImage = null; _addrText = null; _transferText = null; _activityHost = null;
             switch (_page)
             {
                 case "home": BuildHome(); break;
@@ -231,13 +231,26 @@ namespace PcPanel.UI
         }
 
         Grid Row(string glyph, Color color, string title, string sub, UIElement right)
+            => RowI(glyph != null ? IconTile(glyph, color) : null, title, sub, right);
+
+        /// <summary>A logo (Spotify, YouTube…) in the same rounded tile style as the glyph icons.</summary>
+        Border LogoTile(string brand, Color bg, double size = 34, double pad = 0.2)
+        {
+            return new Border
+            {
+                Width = size, Height = size, CornerRadius = new CornerRadius(size * 0.26), Background = B(bg), VerticalAlignment = VerticalAlignment.Center,
+                Child = new Image { Source = Brand.Get(brand), Margin = new Thickness(size * pad), Stretch = Stretch.Uniform }
+            };
+        }
+
+        Grid RowI(UIElement icon, string title, string sub, UIElement right)
         {
             var g = new Grid { Margin = new Thickness(0, 11, 0, 11), MinHeight = 36 };
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             g.ColumnDefinitions.Add(new ColumnDefinition());
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            if (glyph != null) g.Children.Add(IconTile(glyph, color));
-            var txt = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(glyph != null ? 16 : 0, 0, 14, 0) };
+            if (icon != null) g.Children.Add(icon);
+            var txt = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(icon != null ? 16 : 0, 0, 14, 0) };
             txt.Children.Add(new TextBlock { Text = title, Foreground = Brushes.White, FontSize = 15.5, FontWeight = FontWeights.Medium, TextWrapping = TextWrapping.Wrap });
             if (!string.IsNullOrEmpty(sub)) txt.Children.Add(new TextBlock { Text = sub, Foreground = Text2, FontSize = 13, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
             Grid.SetColumn(txt, 1);
@@ -544,6 +557,8 @@ namespace PcPanel.UI
             styles.Children.Add(StyleCard("island", Loc.T("pc.notch.styleIsland"), Loc.T("pc.notch.styleIslandSub"), st.NotchStyle == "island"));
             Add(styles);
 
+            BuildGlowCard();
+
             Add(Section(Loc.T("pc.notch.behavior")));
             Add(Card(
                 SwitchRow(Glyph.Monitor, CBlue, Loc.T("pc.notch.enabled"), Loc.T("pc.notch.enabledSub"), st.NotchEnabled, "notchOn"),
@@ -559,7 +574,9 @@ namespace PcPanel.UI
                 SwitchRow(Glyph.Bolt, CGreen, Loc.T("pc.notch.charging"), Loc.T("pc.notch.chargingSub"), st.NotchCharging, "notchCharge"),
                 SwitchRow(Glyph.Bell, CRed, Loc.T("pc.notch.notifs"), Loc.T("pc.notch.notifsSub"), st.NotchNotifications, "notchNotif"),
                 SwitchRow(Glyph.Call, CGreen, Loc.T("pc.notch.calls"), Loc.T("pc.notch.callsSub"), st.NotchCalls, "notchCall"),
-                SwitchRow(Glyph.Upload, CIndigo, Loc.T("pc.notch.drop"), Loc.T("pc.notch.dropSub"), st.NotchDrop, "notchDrop")
+                SwitchRow(Glyph.Upload, CIndigo, Loc.T("pc.notch.drop"), Loc.T("pc.notch.dropSub"), st.NotchDrop, "notchDrop"),
+                SwitchRow(Glyph.Lyrics, CPink, Loc.T("pc.notch.lyrics"), Loc.T("pc.notch.lyricsSub"), st.Lyrics, "lyrics"),
+                SwitchRow(Glyph.Bluetooth, CBlue, Loc.T("pc.notch.bt"), Loc.T("pc.notch.btSub"), st.NotchBluetooth, "notchBt")
             ));
 
             var test = Btn(Loc.T("pc.notch.test"), () =>
@@ -571,6 +588,153 @@ namespace PcPanel.UI
             test.Margin = new Thickness(0, 18, 0, 0);
             Add(test);
         }
+
+        // ---------------------------------------------------------------- edge light
+        static readonly string[] GlowModes = { "off", "solid", "flow", "rgb", "album" };
+        static readonly string[][] GlowPresets =
+        {
+            new[] { "#0A84FF", "#FFFFFF" }, new[] { "#BF5AF2", "#0A84FF" }, new[] { "#FF9F0A", "#FF375F" },
+            new[] { "#30D158", "#64D2FF" }, new[] { "#FFFFFF", "#64D2FF" }, new[] { "#FF453A", "#FF9F0A" },
+            new[] { "#5E5CE6", "#FF375F", "#FF9F0A" }, new[] { "#FFFFFF", "#8E8E93" }
+        };
+
+        void BuildGlowCard()
+        {
+            var st = App.Settings;
+            string mode = st.NotchGlow ?? "flow";
+            int mi = Math.Max(0, Array.IndexOf(GlowModes, mode));
+            Add(Section(Loc.T("pc.glow.title")));
+
+            var items = new System.Collections.Generic.List<UIElement>();
+            items.Add(Row(Glyph.Light, CBlue, Loc.T("pc.glow.title"), Loc.T("pc.glow.sub"), null));
+            var seg = Segmented(new[] { Loc.T("pc.glow.off"), Loc.T("pc.glow.solid"), Loc.T("pc.glow.flow"), "RGB", Loc.T("pc.glow.album") }, mi,
+                i => { SharedSettings.Set("notchGlow", GlowModes[i]); PreviewGlow(); }, 600);
+            seg.HorizontalAlignment = HorizontalAlignment.Left;
+            seg.Margin = new Thickness(0, 0, 0, 14);
+            items.Add(new Border { Tag = "nosep", Child = seg });
+
+            if (mode == "solid" || mode == "flow")
+            {
+                var cols = st.NotchGlowColors.Split(',').ToList();
+                if (mode == "solid") cols = cols.Take(1).ToList();
+                var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 12) };
+                row.Children.Add(new TextBlock { Text = Loc.T("pc.glow.colors"), Foreground = Brushes.White, FontSize = 15, FontWeight = FontWeights.Medium, VerticalAlignment = VerticalAlignment.Center, Width = 120 });
+                for (int i = 0; i < cols.Count; i++)
+                {
+                    int idx = i;
+                    var sw = Swatch(cols[i], 34, true);
+                    sw.ToolTip = Loc.T("pc.glow.tapToChange");
+                    sw.MouseLeftButtonUp += (s2, e2) =>
+                    {
+                        var picked = PickColor(cols[idx]);
+                        if (picked == null) return;
+                        cols[idx] = picked;
+                        SharedSettings.Set("glowColors", string.Join(",", cols));
+                        PreviewGlow();
+                    };
+                    row.Children.Add(sw);
+                    if (mode == "flow" && cols.Count > 2)
+                    {
+                        var rm = new TextBlock { Text = Glyph.Close, FontFamily = (FontFamily)FindResource("IconFont"), FontSize = 9, Foreground = Text2, Cursor = Cursors.Hand, Margin = new Thickness(-6, -26, 6, 0), VerticalAlignment = VerticalAlignment.Center };
+                        rm.MouseLeftButtonUp += (s2, e2) => { cols.RemoveAt(idx); SharedSettings.Set("glowColors", string.Join(",", cols)); PreviewGlow(); };
+                        row.Children.Add(rm);
+                    }
+                }
+                if (mode == "flow" && cols.Count < 4)
+                {
+                    var add = new Border { Width = 34, Height = 34, CornerRadius = new CornerRadius(17), BorderBrush = B(Color.FromRgb(0x48, 0x48, 0x4A)), BorderThickness = new Thickness(1.5), Cursor = Cursors.Hand, Margin = new Thickness(6, 0, 0, 0),
+                        Child = new TextBlock { Text = Glyph.Add, FontFamily = (FontFamily)FindResource("IconFont"), FontSize = 13, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
+                    add.MouseLeftButtonUp += (s2, e2) =>
+                    {
+                        var picked = PickColor("#FFFFFF");
+                        if (picked == null) return;
+                        cols.Add(picked);
+                        SharedSettings.Set("glowColors", string.Join(",", cols));
+                        PreviewGlow();
+                    };
+                    row.Children.Add(add);
+                }
+                items.Add(row);
+
+                var presets = new WrapPanel { Margin = new Thickness(120, 0, 0, 14) };
+                foreach (var pr in GlowPresets)
+                {
+                    var pill = new Border { Width = 58, Height = 26, CornerRadius = new CornerRadius(13), Margin = new Thickness(0, 0, 8, 8), Cursor = Cursors.Hand,
+                        Background = pr.Length == 1 ? B(ParseHex(pr[0])) : MakeGradient(pr) };
+                    var preset = pr;
+                    pill.MouseLeftButtonUp += (s2, e2) =>
+                    {
+                        SharedSettings.Set("glowColors", string.Join(",", mode == "solid" ? preset.Take(1) : preset));
+                        PreviewGlow();
+                    };
+                    presets.Children.Add(pill);
+                }
+                items.Add(new Border { Tag = "nosep", Child = presets });
+            }
+
+            if (mode != "off")
+            {
+                if (mode != "solid")
+                {
+                    int sp = st.NotchGlowSpeed;
+                    int si = sp >= 9 ? 0 : sp <= 4 ? 2 : 1;
+                    items.Add(Row(Glyph.Speed, CTeal, Loc.T("pc.glow.speed"), null,
+                        Segmented(new[] { Loc.T("pc.glow.slow"), Loc.T("pc.glow.normal"), Loc.T("pc.glow.fast") }, si,
+                            i => { SharedSettings.Set("glowSpeed", i == 0 ? 10 : i == 1 ? 6 : 3); PreviewGlow(); }, 280)));
+                }
+                var str = st.NotchGlowStrength;
+                items.Add(Row(Glyph.Light, CIndigo, Loc.T("pc.glow.strength"), null,
+                    Segmented(new[] { Loc.T("pc.glow.low"), Loc.T("pc.glow.normal"), Loc.T("pc.glow.high") }, str == "low" ? 0 : str == "high" ? 2 : 1,
+                        i => { SharedSettings.Set("glowStrength", i == 0 ? "low" : i == 2 ? "high" : "mid"); PreviewGlow(); }, 280)));
+            }
+            Add(Card(items.ToArray()));
+        }
+
+        static Color ParseHex(string hex)
+        {
+            try { return (Color)ColorConverter.ConvertFromString(hex); } catch { return Colors.White; }
+        }
+
+        static Brush MakeGradient(string[] cols)
+        {
+            var lg = new LinearGradientBrush { StartPoint = new Point(0, 0.5), EndPoint = new Point(1, 0.5) };
+            for (int i = 0; i < cols.Length; i++) lg.GradientStops.Add(new GradientStop(ParseHex(cols[i]), cols.Length == 1 ? 0 : (double)i / (cols.Length - 1)));
+            lg.Freeze();
+            return lg;
+        }
+
+        Border Swatch(string hex, double size, bool clickable)
+        {
+            var b = new Border
+            {
+                Width = size, Height = size, CornerRadius = new CornerRadius(size / 2), Background = B(ParseHex(hex)),
+                BorderBrush = B(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), BorderThickness = new Thickness(2), Margin = new Thickness(0, 0, 10, 0),
+                Cursor = clickable ? Cursors.Hand : Cursors.Arrow,
+                Effect = new System.Windows.Media.Effects.DropShadowEffect { ShadowDepth = 0, BlurRadius = 10, Opacity = 0.6, Color = ParseHex(hex) }
+            };
+            return b;
+        }
+
+        /// <summary>Windows colour picker; returns "#RRGGBB" or null.</summary>
+        string PickColor(string current)
+        {
+            try
+            {
+                var c = ParseHex(current);
+                using var dlg = new System.Windows.Forms.ColorDialog { FullOpen = true, AnyColor = true, Color = System.Drawing.Color.FromArgb(c.R, c.G, c.B) };
+                var owner = new System.Windows.Forms.NativeWindow();
+                owner.AssignHandle(new System.Windows.Interop.WindowInteropHelper(this).Handle);
+                try
+                {
+                    if (dlg.ShowDialog(owner) != System.Windows.Forms.DialogResult.OK) return null;
+                }
+                finally { owner.ReleaseHandle(); }
+                return $"#{dlg.Color.R:X2}{dlg.Color.G:X2}{dlg.Color.B:X2}";
+            }
+            catch { return null; }
+        }
+
+        static void PreviewGlow() => App.Notch?.ShowInfo(Glyph.Light, Loc.T("pc.glow.title"), 2.6);
 
         UIElement StyleCard(string id, string title, string sub, bool selected)
         {
@@ -640,13 +804,13 @@ namespace PcPanel.UI
         {
             var st = App.Settings;
             Add(Section(Loc.T("pc.music.source")));
-            Add(Card(Row(Glyph.Music, CPink, Loc.T("pc.music.default"), Loc.T("pc.music.defaultSub"),
+            Add(Card(RowI(LogoTile(st.MusicSource == "youtube" ? "youtube" : "spotify", Color.FromRgb(0x12, 0x12, 0x12), 34, 0.16), Loc.T("pc.music.default"), Loc.T("pc.music.defaultSub"),
                 Segmented(new[] { "Spotify", "YouTube" }, st.MusicSource == "youtube" ? 1 : 0, i => SharedSettings.Set("musicSrc", i == 1 ? "youtube" : "spotify"), 240))));
 
             // ---------- Spotify
             Add(Section("Spotify"));
             bool connected = SpotifyService.I.Connected;
-            var status = Row(Glyph.Music, CSpotify,
+            var status = RowI(LogoTile("spotify", Color.FromRgb(0x12, 0x12, 0x12), 34, 0.16),
                 connected ? Loc.F("pc.spotify.connectedAs", string.IsNullOrEmpty(st.SpotifyUser) ? "Spotify" : st.SpotifyUser) : Loc.T("pc.spotify.notConnected"),
                 connected ? Loc.T("pc.spotify.connectedSub") : Loc.T("pc.spotify.notConnectedSub"),
                 connected
@@ -680,7 +844,8 @@ namespace PcPanel.UI
             openDash.HorizontalAlignment = HorizontalAlignment.Left;
             openDash.Margin = new Thickness(0, 12, 0, 0);
             guide.Children.Add(openDash);
-            Add(Card(status, clientRow, guide));
+            var spBg = RowI(LogoTile("spotify_white", CSpotify, 34, 0.2), Loc.T("pc.music.spBg"), Loc.T("pc.music.spBgSub"), Switch(st.SpotifyBackground, v => SharedSettings.Set("spBg", v)));
+            Add(Card(status, spBg, clientRow, guide));
 
             // ---------- YouTube
             Add(Section("YouTube"));
@@ -701,7 +866,8 @@ namespace PcPanel.UI
             getKey.HorizontalAlignment = HorizontalAlignment.Left;
             getKey.Margin = new Thickness(0, 10, 0, 0);
             keyRow.Children.Add(getKey);
-            Add(Card(Row(Glyph.Video, CYouTube, "YouTube", Loc.T("pc.youtube.sub"), null), keyRow));
+            var ytBg = Row(Glyph.Monitor, CGray, Loc.T("pc.music.ytBg"), Loc.T("pc.music.ytBgSub"), Switch(st.YouTubeBackground, v => SharedSettings.Set("ytBg", v)));
+            Add(Card(RowI(LogoTile("youtube", Color.FromRgb(0x12, 0x12, 0x12), 34, 0.14), "YouTube", Loc.T("pc.youtube.sub"), null), ytBg, keyRow));
         }
 
         // ================================================================== FEATURES
@@ -713,7 +879,20 @@ namespace PcPanel.UI
             Add(Card(
                 Row(Glyph.Clipboard, CTeal, Loc.T("pc.feat.clip"), Loc.T("pc.feat.clipSub"), HStack(clipSend, Switch(st.ClipboardSync, v => SharedSettings.Set("clipSync", v)))),
                 SwitchRow(Glyph.Lock, CIndigo, Loc.T("pc.feat.autoLock"), Loc.T("pc.feat.autoLockSub"), st.AutoLock, "autoLock"),
-                Row(Glyph.Folder, COrange, Loc.T("pc.feat.files"), FileService.Folder, Btn(Loc.T("pc.open"), () => SystemSetup.ShellOpen(FileService.Folder), null, null, Glyph.Folder))
+                Row(Glyph.Folder, COrange, Loc.T("pc.feat.files"), FileService.Folder, Btn(Loc.T("pc.open"), () => SystemSetup.ShellOpen(FileService.Folder), null, null, Glyph.Folder)),
+                SwitchRow(Glyph.Camera, CPink, Loc.T("pc.feat.shotToPhone"), Loc.T("pc.feat.shotToPhoneSub"), st.ShotToPhone, "shotToPhone"),
+                SwitchRow(Glyph.Download, CGreen, Loc.T("pc.feat.dl"), Loc.T("pc.feat.dlSub"), st.DownloadAlerts, "dlAlerts")
+            ));
+
+            Add(Section(Loc.T("log.title")));
+            var clear = Btn(Loc.T("log.clear"), () => ActivityService.I.Clear(), Color.FromArgb(0x33, 0xFF, 0x45, 0x3A), CRed);
+            var timeline = new StackPanel { Margin = new Thickness(0, 4, 0, 10) };
+            _activityHost = timeline;
+            FillActivity(timeline);
+            Add(Card(
+                SwitchRow(Glyph.Shield, CIndigo, Loc.T("pc.feat.sec"), Loc.T("pc.feat.secSub"), st.SecurityAlerts, "secAlerts"),
+                new Border { Tag = "nosep", Child = timeline },
+                Row(null, CGray, Loc.T("log.keep"), null, clear)
             ));
 
             Add(Section(Loc.T("pc.feat.sounds")));
@@ -732,6 +911,76 @@ namespace PcPanel.UI
                 SwitchRow(Glyph.Speed, CRed, Loc.T("pc.feat.history"), Loc.T("pc.feat.historySub"), st.TempHistory, "tempHistory"),
                 SwitchRow(Glyph.Sync, CTeal, Loc.T("pc.feat.fans"), Loc.T("pc.feat.fansSub"), st.FanControl, "fanCtl")
             ));
+        }
+
+        // ---------------------------------------------------------------- activity timeline
+        StackPanel _activityHost;
+
+        public void OnActivityChanged()
+        {
+            if (_page == "features" && _activityHost != null) FillActivity(_activityHost);
+        }
+
+        public static (string glyph, Color color, string titleKey) ActivityStyle(string kind) => kind switch
+        {
+            "boot" => (Glyph.Power, Color.FromRgb(0x30, 0xD1, 0x58), "log.boot"),
+            "logon" => (Glyph.Person, Color.FromRgb(0x0A, 0x84, 0xFF), "log.logon"),
+            "unlock" => (Glyph.Unlock, Color.FromRgb(0xFF, 0x9F, 0x0A), "log.unlock"),
+            "lock" => (Glyph.Lock, Color.FromRgb(0x8E, 0x8E, 0x93), "log.lock"),
+            "wake" => (Glyph.Light, Color.FromRgb(0xFF, 0xD6, 0x0A), "log.wake"),
+            "sleep" => (Glyph.Moon, Color.FromRgb(0x5E, 0x5C, 0xE6), "log.sleep"),
+            "failed" => (Glyph.Warning, Color.FromRgb(0xFF, 0x45, 0x3A), "log.failed"),
+            "remote" => (Glyph.Globe, Color.FromRgb(0xBF, 0x5A, 0xF2), "log.remote"),
+            "shutdown" => (Glyph.Power, Color.FromRgb(0x8E, 0x8E, 0x93), "log.shutdown"),
+            _ => (Glyph.Info, Color.FromRgb(0x8E, 0x8E, 0x93), "log.other")
+        };
+
+        void FillActivity(StackPanel host)
+        {
+            host.Children.Clear();
+            var items = ActivityService.I.Items.Reverse().Take(12).ToList();
+            if (items.Count == 0)
+            {
+                host.Children.Add(new TextBlock { Text = Loc.T("log.empty"), Foreground = Text2, FontSize = 13.5, Margin = new Thickness(52, 6, 0, 6) });
+                return;
+            }
+            string lastDay = null;
+            for (int i = 0; i < items.Count; i++)
+            {
+                var e = items[i];
+                var t = DateTimeOffset.FromUnixTimeMilliseconds(e.Time).LocalDateTime;
+                string day = t.Date == DateTime.Today ? Loc.T("log.today") : t.Date == DateTime.Today.AddDays(-1) ? Loc.T("log.yesterday") : t.ToString("d MMMM", System.Globalization.CultureInfo.GetCultureInfo(App.Settings.Lang));
+                if (day != lastDay)
+                {
+                    host.Children.Add(new TextBlock { Text = day, Foreground = Text2, FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(52, i == 0 ? 6 : 14, 0, 4) });
+                    lastDay = day;
+                }
+                var (glyph, color, key) = ActivityStyle(e.Kind);
+                var g = new Grid { Margin = new Thickness(0, 0, 0, 0), MinHeight = 46 };
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(52) });
+                g.ColumnDefinitions.Add(new ColumnDefinition());
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                // timeline rail + dot
+                var rail = new Grid();
+                bool lastOfDay = i == items.Count - 1 || DateTimeOffset.FromUnixTimeMilliseconds(items[i + 1].Time).LocalDateTime.Date != t.Date;
+                rail.Children.Add(new Border { Width = 2, Background = SepBg, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, lastOfDay ? 23 : 0) });
+                rail.Children.Add(new Border
+                {
+                    Width = 28, Height = 28, CornerRadius = new CornerRadius(14), Background = B(Color.FromArgb(0x33, color.R, color.G, color.B)),
+                    BorderBrush = B(color), BorderThickness = new Thickness(1.5), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+                    Child = new TextBlock { Text = glyph, FontFamily = (FontFamily)FindResource("IconFont"), FontSize = 12, Foreground = B(color), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
+                });
+                g.Children.Add(rail);
+                var txt = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 10, 0) };
+                txt.Children.Add(new TextBlock { Text = Loc.T(key), Foreground = Brushes.White, FontSize = 14.5, FontWeight = FontWeights.Medium });
+                if (!string.IsNullOrWhiteSpace(e.Detail)) txt.Children.Add(new TextBlock { Text = e.Detail, Foreground = Text2, FontSize = 12.5 });
+                Grid.SetColumn(txt, 1);
+                g.Children.Add(txt);
+                var time = new TextBlock { Text = t.ToString("HH:mm"), Foreground = Brushes.White, FontSize = 15, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, FontFamily = new FontFamily("Segoe UI Variable Display, Segoe UI") };
+                Grid.SetColumn(time, 2);
+                g.Children.Add(time);
+                host.Children.Add(g);
+            }
         }
 
         // ================================================================== SETTINGS

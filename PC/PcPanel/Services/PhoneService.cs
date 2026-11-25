@@ -80,7 +80,7 @@ namespace PcPanel.Services
             {
                 if (!App.Settings.NotchNotifications) return;
                 var img = DecodeIcon(icon);
-                App.Notch?.ShowNotification(img, app, title, text);
+                App.Notch?.ShowNotification(img, app, title, text, S(m, "pkg"));
                 SoundService.Play("notify");
             });
         }

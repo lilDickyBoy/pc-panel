@@ -54,6 +54,7 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.QueryStats
 import androidx.compose.material.icons.rounded.Send
 import androidx.compose.material.icons.rounded.ShowChart
+import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.SportsEsports
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.SwapVert
@@ -143,6 +144,7 @@ fun ToolsScreen() {
             "timer" -> CountdownPage(back)
             "fans" -> FansPage(back)
             "history" -> HistoryPage(back)
+            "activity" -> ActivityPage(back)
             else -> ToolsGrid()
         }
     }
@@ -159,6 +161,7 @@ private fun ToolsGrid() {
         ToolDef("timer", Icons.Rounded.Timer, C.Yellow, Str.t("tools.timer"), Str.t("tools.timerSub")),
         ToolDef("fans", Icons.Rounded.Toys, C.Green, Str.t("tools.fans"), Str.t("tools.fansSub")),
         ToolDef("history", Icons.Rounded.ShowChart, C.Red, Str.t("tools.history"), Str.t("tools.historySub")),
+        ToolDef("activity", Icons.Rounded.Shield, C.Indigo, Str.t("tools.activity"), Str.t("tools.activitySub")),
     )
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding().padding(horizontal = 16.dp)) {
         LargeHeader(Str.t("tab.tools"))

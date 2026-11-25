@@ -127,6 +127,17 @@ data class PcSettings(
     val notchCall: Boolean = true,
     val notchDrop: Boolean = true,
     val notchCharge: Boolean = true,
+    val notchBt: Boolean = true,
+    val notchGlow: String = "flow",
+    val glowColors: String = "#0A84FF,#FFFFFF",
+    val glowSpeed: Int = 6,
+    val glowStrength: String = "mid",
+    val lyrics: Boolean = true,
+    val shotToPhone: Boolean = true,
+    val secAlerts: Boolean = true,
+    val dlAlerts: Boolean = true,
+    val spBg: Boolean = true,
+    val ytBg: Boolean = false,
     val sounds: Boolean = true,
     val soundVol: Int = 70,
     val clipSync: Boolean = true,
@@ -152,6 +163,10 @@ data class PcSettings(
             notchOn = o.optBoolean("notchOn", true), notchStyle = o.optString("notchStyle", "notch"), notchMode = o.optString("notchMode", "auto"),
             notchFs = o.optBoolean("notchFs", true), notchVol = o.optBoolean("notchVol", true), notchConn = o.optBoolean("notchConn", true),
             notchNotif = o.optBoolean("notchNotif", true), notchCall = o.optBoolean("notchCall", true), notchDrop = o.optBoolean("notchDrop", true), notchCharge = o.optBoolean("notchCharge", true),
+            notchBt = o.optBoolean("notchBt", true), notchGlow = o.optString("notchGlow", "flow"), glowColors = o.optString("glowColors", "#0A84FF,#FFFFFF"),
+            glowSpeed = o.optInt("glowSpeed", 6), glowStrength = o.optString("glowStrength", "mid"), lyrics = o.optBoolean("lyrics", true),
+            shotToPhone = o.optBoolean("shotToPhone", true), secAlerts = o.optBoolean("secAlerts", true), dlAlerts = o.optBoolean("dlAlerts", true),
+            spBg = o.optBoolean("spBg", true), ytBg = o.optBoolean("ytBg", false),
             sounds = o.optBoolean("sounds", true), soundVol = o.optInt("soundVol", 70), clipSync = o.optBoolean("clipSync", true),
             autoLock = o.optBoolean("autoLock"), shotCursor = o.optBoolean("shotCursor"), gameMode = o.optBoolean("gameMode", true),
             tempHistory = o.optBoolean("tempHistory", true), fanCtl = o.optBoolean("fanCtl", true), musicSrc = o.optString("musicSrc", "spotify"),
@@ -214,4 +229,12 @@ fun fmtTime(sec: Double): String {
 fun fmtUptime(sec: Long): String {
     val d = sec / 86400; val h = (sec % 86400) / 3600; val m = (sec % 3600) / 60
     return when { d > 0 -> "${d}d ${h}h"; h > 0 -> "${h}h ${m}m"; else -> "${m}m" }
+}
+
+/** One entry of the PC's activity log (turned on, unlocked, wrong password…). */
+data class ActivityItem(val id: Long, val time: Long, val kind: String, val detail: String) {
+    companion object {
+        fun parse(o: org.json.JSONObject) = ActivityItem(o.optLong("id"), o.optLong("time"), o.optString("kind"), o.optString("detail"))
+        fun isAlert(kind: String) = kind in setOf("boot", "logon", "unlock", "wake", "failed", "remote")
+    }
 }

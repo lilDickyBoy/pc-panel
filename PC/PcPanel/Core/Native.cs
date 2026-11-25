@@ -18,6 +18,44 @@ namespace PcPanel.Core
         [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")]
         public static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
 
+        // ---------- legacy file drop (works into an elevated window, unlike OLE drag & drop)
+        public const int WM_DROPFILES = 0x0233, WM_COPYDATA = 0x004A, WM_COPYGLOBALDATA = 0x0049;
+        public const uint MSGFLT_ALLOW = 1;
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool ChangeWindowMessageFilterEx(IntPtr hwnd, int message, uint action, IntPtr pChangeFilterStruct);
+        [DllImport("shell32.dll")]
+        public static extern void DragAcceptFiles(IntPtr hwnd, bool fAccept);
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+        public static extern uint DragQueryFile(IntPtr hDrop, uint iFile, System.Text.StringBuilder lpszFile, uint cch);
+        [DllImport("shell32.dll")]
+        public static extern void DragFinish(IntPtr hDrop);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        public static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+        [DllImport("user32.dll")]
+        public static extern bool IsWindowVisible(IntPtr hWnd);
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetForegroundWindow();
+
+        // ---------- keeping a window in front (used to open music apps "in the background")
+        [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+        [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);
+        [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+        [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+        [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+        [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+        public const int SW_SHOWMINNOACTIVE = 7;
+
+        /// <summary>Bring a window back to the front even though we aren't the foreground app.</summary>
+        public static void ForceForeground(IntPtr hWnd)
+        {
+            if (hWnd == IntPtr.Zero) return;
+            uint fgThread = GetWindowThreadProcessId(GetForegroundWindow(), out _);
+            uint me = GetCurrentThreadId();
+            bool attached = fgThread != 0 && fgThread != me && AttachThreadInput(me, fgThread, true);
+            try { BringWindowToTop(hWnd); SetForegroundWindow(hWnd); }
+            finally { if (attached) AttachThreadInput(me, fgThread, false); }
+        }
+
         // ---------- Drag & drop detection (Explorer raises these when you start dragging items) ----------
         public const uint EVENT_OBJECT_DRAGSTART = 0x8021;
         public const uint EVENT_OBJECT_DRAGCANCEL = 0x8022;

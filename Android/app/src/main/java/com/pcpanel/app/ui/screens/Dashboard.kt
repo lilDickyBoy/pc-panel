@@ -18,6 +18,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -374,6 +375,21 @@ private fun MusicBar(k: Float, wide: Boolean) {
                 m.artist, color = TextMid, fontSize = ((if (wide) 18 else 15) * k).sp, fontWeight = FontWeight.Medium,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, letterSpacing = 0.4.sp, modifier = Modifier.padding(top = (2 * k).dp)
             )
+            // the line being sung right now (from the PC's lyrics), sliding in like on the notch
+            val line = if (m.playing) Connection.lyricLine else ""
+            androidx.compose.animation.AnimatedContent(
+                targetState = line,
+                transitionSpec = {
+                    (androidx.compose.animation.slideInVertically(spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow)) { it / 2 } + fadeIn(tween(260))) togetherWith
+                        (androidx.compose.animation.slideOutVertically(tween(200)) { -it / 2 } + fadeOut(tween(160)))
+                },
+                label = "lyric"
+            ) { l ->
+                if (l.isNotBlank()) Text(
+                    l, color = Color(0xFFDCE3FF), fontSize = ((if (wide) 16 else 13) * k).sp, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = (6 * k).dp)
+                )
+            }
             if (!wide) ProgressLine(f, k, Modifier.padding(top = (10 * k).dp).fillMaxWidth())
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = (if (wide) 18 else 6).times(k).dp)) {

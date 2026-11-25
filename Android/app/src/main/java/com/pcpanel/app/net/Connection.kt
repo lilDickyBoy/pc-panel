@@ -140,6 +140,11 @@ object Connection {
     var musicList by mutableStateOf<MusicList?>(null)
     var musicLoading by mutableStateOf(false)
     var musicError by mutableStateOf("")
+    /** PC activity log (newest last). */
+    var activity by mutableStateOf<List<ActivityItem>>(emptyList())
+    /** Lyrics line currently sung on the PC (empty = none). */
+    var lyricLine by mutableStateOf("")
+    var lyricNext by mutableStateOf("")
 
     // ------------------------------------------------------------------ internals
     private var ws: WebSocket? = null
@@ -355,6 +360,7 @@ object Connection {
             if (Prefs.langDirty) setShared("lang", Prefs.lang)
             sendRate()
             PhoneLink.onConnected(ctx)
+            cmd("activityGet")
             val todo = synchronized(pending) { pending.toList().also { pending.clear() } }
             todo.forEach { try { it() } catch (_: Exception) { } }
         }
@@ -555,6 +561,26 @@ object Connection {
                 }
             }
             "pcInfo" -> ui { val n = o.optString("name"); if (n.isNotBlank()) Prefs.updatePcInfo(n, null, null) }
+            "activity" -> {
+                val e = ActivityItem.parse(o.optJSONObject("entry") ?: JSONObject())
+                ui { activity = (activity.filter { it.id != e.id } + e).takeLast(150) }
+                if (o.optBoolean("alert") && e.time > Prefs.lastActivitySeen) notifyActivity(listOf(e), away = false)
+                Prefs.updateLastActivitySeen(maxOf(Prefs.lastActivitySeen, e.time))
+            }
+            "activityList" -> {
+                val a = o.optJSONArray("items") ?: JSONArray()
+                val list = (0 until a.length()).mapNotNull { a.optJSONObject(it)?.let(ActivityItem::parse) }
+                ui { activity = list }
+                val seen = Prefs.lastActivitySeen
+                if (seen > 0 && pcSettings.secAlerts) {
+                    val missed = list.filter { it.time > seen && ActivityItem.isAlert(it.kind) }
+                    if (missed.isNotEmpty()) notifyActivity(missed, away = true)
+                }
+                list.maxOfOrNull { it.time }?.let { Prefs.updateLastActivitySeen(maxOf(seen, it)) }
+                    ?: run { if (seen == 0L) Prefs.updateLastActivitySeen(System.currentTimeMillis()) }
+            }
+            "download" -> notifyDownload(o.optString("name"), o.optString("source"))
+            "lyric" -> ui { lyricLine = o.optString("line"); lyricNext = o.optString("next") }
             "game" -> ui { inGame = o.optBoolean("on") }
             "mixer" -> {
                 val a = o.optJSONArray("list") ?: JSONArray()
@@ -661,6 +687,48 @@ object Connection {
             ctx.contentResolver.openOutputStream(uri)?.use { it.write(jpeg) }
             true
         } catch (_: Exception) { false }
+    }
+
+    /** "PC unlocked · 14:32" – or a summary of what happened while the phone was away. */
+    private fun notifyActivity(items: List<ActivityItem>, away: Boolean) {
+        try {
+            val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val fmt = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+            val pc = Prefs.pc?.name ?: "PC"
+            val last = items.last()
+            val title = if (away) Str.t("log.away") else Str.t("log." + last.kind)
+            val lines = items.takeLast(6).map { Str.t("log." + it.kind) + " · " + fmt.format(java.util.Date(it.time)) + (if (it.detail.isNotBlank()) " (" + it.detail + ")" else "") }
+            val text = if (away) lines.last() + (if (items.size > 1) "  " + Str.f("log.awayMore", items.size - 1) else "")
+                       else pc + " · " + fmt.format(java.util.Date(last.time)) + (if (last.detail.isNotBlank()) " · " + last.detail else "")
+            val style = NotificationCompat.InboxStyle().also { st -> lines.forEach { st.addLine(it) } }
+            val n = NotificationCompat.Builder(ctx, PcPanelApp.CH_SECURITY)
+                .setSmallIcon(R.drawable.ic_stat_pcpanel)
+                .setContentTitle(title)
+                .setContentText(text)
+                .setStyle(if (away && items.size > 1) style else NotificationCompat.BigTextStyle().bigText(text))
+                .setPriority(if (last.kind == "failed") NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_STATUS)
+                .setAutoCancel(true)
+                .setContentIntent(PcPanelApp.openAppIntent(ctx))
+                .build()
+            nm.notify(if (away) 1100 else (1101 + (last.id % 50).toInt()), n)
+        } catch (_: Exception) { }
+    }
+
+    private fun notifyDownload(name: String, source: String) {
+        if (name.isBlank()) return
+        try {
+            val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val from = when (source) { "steam" -> "Steam"; "epic" -> "Epic Games"; else -> Prefs.pc?.name ?: "PC" }
+            val n = NotificationCompat.Builder(ctx, PcPanelApp.CH_DOWNLOADS)
+                .setSmallIcon(R.drawable.ic_stat_pcpanel)
+                .setContentTitle(Str.t("dl.done"))
+                .setContentText("$name · $from")
+                .setAutoCancel(true)
+                .setContentIntent(PcPanelApp.openAppIntent(ctx))
+                .build()
+            nm.notify(1200 + (name.hashCode() and 0x3F), n)
+        } catch (_: Exception) { }
     }
 
     private fun notifyAlert(text: String) {

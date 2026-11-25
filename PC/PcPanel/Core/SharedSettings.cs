@@ -32,6 +32,17 @@ namespace PcPanel.Core
                 notchCall = s.NotchCalls,
                 notchDrop = s.NotchDrop,
                 notchCharge = s.NotchCharging,
+                notchBt = s.NotchBluetooth,
+                notchGlow = s.NotchGlow,
+                glowColors = s.NotchGlowColors,
+                glowSpeed = s.NotchGlowSpeed,
+                glowStrength = s.NotchGlowStrength,
+                lyrics = s.Lyrics,
+                shotToPhone = s.ShotToPhone,
+                secAlerts = s.SecurityAlerts,
+                dlAlerts = s.DownloadAlerts,
+                spBg = s.SpotifyBackground,
+                ytBg = s.YouTubeBackground,
                 sounds = s.Sounds,
                 soundVol = s.SoundVolume,
                 clipSync = s.ClipboardSync,
@@ -79,6 +90,17 @@ namespace PcPanel.Core
                     case "notchCall": s.NotchCalls = B(v); break;
                     case "notchDrop": s.NotchDrop = B(v); break;
                     case "notchCharge": s.NotchCharging = B(v); break;
+                    case "notchBt": s.NotchBluetooth = B(v); break;
+                    case "notchGlow": { var g = S(v); s.NotchGlow = g is "off" or "solid" or "flow" or "rgb" or "album" ? g : "flow"; break; }
+                    case "glowColors": s.NotchGlowColors = CleanColors(S(v)); break;
+                    case "glowSpeed": s.NotchGlowSpeed = Math.Clamp(I(v, 6), 2, 20); break;
+                    case "glowStrength": { var g = S(v); s.NotchGlowStrength = g is "low" or "high" ? g : "mid"; break; }
+                    case "lyrics": s.Lyrics = B(v); break;
+                    case "shotToPhone": s.ShotToPhone = B(v); break;
+                    case "secAlerts": s.SecurityAlerts = B(v); break;
+                    case "dlAlerts": s.DownloadAlerts = B(v); break;
+                    case "spBg": s.SpotifyBackground = B(v); break;
+                    case "ytBg": s.YouTubeBackground = B(v); break;
                     case "sounds": s.Sounds = B(v); break;
                     case "soundVol": s.SoundVolume = Math.Clamp(I(v, 70), 0, 100); break;
                     case "clipSync": s.ClipboardSync = B(v); break;
@@ -98,6 +120,20 @@ namespace PcPanel.Core
             if (autostartChanged) { bool on = s.Autostart; System.Threading.Tasks.Task.Run(() => SystemSetup.SetAutostart(on)); }
             if (nameChanged) App.Server?.Broadcast(new { type = "pcInfo", name = s.PcName });
             Push();
+        }
+
+        /// <summary>"#0A84FF, #fff ,bad" -> "#0A84FF,#FFFFFF" (max 4 colours, at least one).</summary>
+        public static string CleanColors(string raw)
+        {
+            var list = new List<string>();
+            foreach (var part in (raw ?? "").Split(','))
+            {
+                var p = part.Trim().TrimStart('#');
+                if (p.Length == 3) p = string.Concat(p[0], p[0], p[1], p[1], p[2], p[2]);
+                if (p.Length == 6 && int.TryParse(p, System.Globalization.NumberStyles.HexNumber, null, out _)) list.Add("#" + p.ToUpperInvariant());
+                if (list.Count == 4) break;
+            }
+            return list.Count == 0 ? "#0A84FF,#FFFFFF" : string.Join(",", list);
         }
 
         public static void Set(string key, JsonNode value) => Apply(new[] { new KeyValuePair<string, JsonNode>(key, value) });

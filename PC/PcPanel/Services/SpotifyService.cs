@@ -314,7 +314,11 @@ namespace PcPanel.Services
                 if (attempt == 0)
                 {
                     // Spotify isn't running on the PC – start it
-                    if (Process.GetProcessesByName("Spotify").Length == 0) SystemSetup.ShellOpen("spotify:");
+                    if (Process.GetProcessesByName("Spotify").Length == 0)
+                    {
+                        if (App.Settings.SpotifyBackground) SystemSetup.OpenInBackground("spotify:", minimizeNew: true, processName: "Spotify");
+                        else SystemSetup.ShellOpen("spotify:");
+                    }
                 }
                 await Task.Delay(1000);
             }
@@ -393,7 +397,12 @@ namespace PcPanel.Services
             }
         }
 
-        public static void Play(string id) => SystemSetup.ShellOpen("https://www.youtube.com/watch?v=" + Uri.EscapeDataString(id));
+        public static void Play(string id)
+        {
+            var url = "https://www.youtube.com/watch?v=" + Uri.EscapeDataString(id);
+            if (App.Settings.YouTubeBackground) SystemSetup.OpenInBackground(url, minimizeNew: false);
+            else SystemSetup.ShellOpen(url);
+        }
         public static void SearchInBrowser(string q) => SystemSetup.ShellOpen("https://www.youtube.com/results?search_query=" + Uri.EscapeDataString(q));
     }
 }

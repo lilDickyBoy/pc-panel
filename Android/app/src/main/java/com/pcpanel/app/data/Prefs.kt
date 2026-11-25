@@ -59,7 +59,9 @@ object Prefs {
     var powerSave by mutableStateOf(true)
         private set
     /** seconds before disconnecting after leaving the app (0 = immediately) */
-    var disconnectDelay by mutableStateOf(6)
+    var disconnectDelay by mutableStateOf(60)
+    var lastActivitySeen = 0L
+        private set
         private set
     /** live data refresh in ms: 1000 / 2000 / 5000 */
     var refreshMs by mutableStateOf(1000)
@@ -98,7 +100,8 @@ object Prefs {
         cpuAlert = sp.getInt("cpuAlert", 90)
         gpuAlert = sp.getInt("gpuAlert", 85)
         powerSave = sp.getBoolean("powerSave", true)
-        disconnectDelay = sp.getInt("disconnectDelay", 6)
+        disconnectDelay = sp.getInt("disconnectDelay2", 60)
+        lastActivitySeen = sp.getLong("lastActivitySeen", 0L)
         refreshMs = sp.getInt("refreshMs", 1000)
         mirrorNotifs = sp.getBoolean("mirrorNotifs", false)
         mirrorCalls = sp.getBoolean("mirrorCalls", true)
@@ -165,7 +168,8 @@ object Prefs {
     fun updateTouchSpeed(v: Float) { touchSpeed = v; sp.edit().putFloat("touchSpeed", v).apply() }
     fun updateAlerts(cpu: Int, gpu: Int) { cpuAlert = cpu; gpuAlert = gpu; sp.edit().putInt("cpuAlert", cpu).putInt("gpuAlert", gpu).apply() }
     fun updatePowerSave(v: Boolean) { powerSave = v; sp.edit().putBoolean("powerSave", v).apply() }
-    fun updateDisconnectDelay(v: Int) { disconnectDelay = v; sp.edit().putInt("disconnectDelay", v).apply() }
+    fun updateLastActivitySeen(v: Long) { lastActivitySeen = v; sp.edit().putLong("lastActivitySeen", v).apply() }
+    fun updateDisconnectDelay(v: Int) { disconnectDelay = v; sp.edit().putInt("disconnectDelay2", v).apply() }
     fun updateRefreshMs(v: Int) { refreshMs = v; sp.edit().putInt("refreshMs", v).apply() }
     fun updateMirrorNotifs(v: Boolean) { mirrorNotifs = v; sp.edit().putBoolean("mirrorNotifs", v).apply() }
     fun updateMirrorCalls(v: Boolean) { mirrorCalls = v; sp.edit().putBoolean("mirrorCalls", v).apply() }

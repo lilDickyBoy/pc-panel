@@ -13,14 +13,17 @@ Control your Windows PC from your Android phone: live temperatures, music, a Dyn
 ### 1. Windows app
 1. Install the **[.NET 8 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/8.0)**. On that page, look under *.NET Desktop Runtime* → *Windows x64*. If it's already installed, skip this step.
 2. Download **[PC-Panel-Windows.zip](https://github.com/lilDickyBoy/pc-panel/releases/latest/download/PC-Panel-Windows.zip)** and extract it somewhere permanent, for example `C:\Program Files\PC Panel` or `Documents\PC Panel`.
-3. Run **PCPanel.exe** and click **Yes** on the administrator prompt. Admin rights let it read CPU temperatures and add the firewall rule.
+3. Run **PCPanel.exe** and click **Yes** on the administrator prompt. Admin rights let it read CPU temperatures and add the firewall rule. You only need to do this once: after that PC Panel starts with admin rights without asking again.
 4. If Windows Firewall asks, allow it on **private networks**.
 5. A QR code appears on the **Home** page. PC Panel also starts with Windows; you can turn this off in Settings.
 
 ### 2. Phone app
 1. On your phone, open **[PC-Panel.apk](https://github.com/lilDickyBoy/pc-panel/releases/latest/download/PC-Panel.apk)** and install it. If your phone asks, allow *Install unknown apps* for your browser.
 2. Open PC Panel, tap **Scan QR code**, and scan the code on your PC. Both devices must be on the same Wi-Fi.
-3. **Xiaomi / MIUI / HyperOS:**
+3. **If Google Play Protect blocks it** ("App blocked" / "Unsafe app blocked"): this happens because the APK isn't from the Play Store, not because something is wrong with it (the code is all here).
+   - Tap **More details → Install anyway**.
+   - If there's no such button: open the **Play Store** → your profile picture → **Play Protect** → ⚙ (top right) → turn off **Scan apps with Play Protect**. Install the APK, then turn the scan back on.
+4. **Xiaomi / MIUI / HyperOS:**
    - In PC Panel, go to Settings → **Android battery optimization** → Allow.
    - Then in phone Settings → Apps → PC Panel → Battery saver, choose **No restrictions**.
 
@@ -64,7 +67,9 @@ Download the new APK and ZIP from [Releases](https://github.com/lilDickyBoy/pc-p
 - **Also:** Find my phone, a desk dashboard mode, and 12 languages.
 
 **PC app (Windows 10/11)**
-- **Notch:** a notch or Dynamic Island at the top of the screen. It shows music, phone charging (*"Phone charging · 80%"*), notifications, calls, volume and timers, with iOS-style transitions.
+- **Notch:** a notch or Dynamic Island at the top of the screen. It shows music (spinning album cover + synced lyrics), phone charging (*"Phone charging · 80%"*), notifications, calls, volume, timers and Bluetooth devices, with iOS-style transitions and an optional glowing edge light.
+- **Drop to phone:** drag a file to the top of the screen and it goes to your phone; images land in the gallery. Screenshots can go there automatically too.
+- **Security log:** see when the PC was turned on, unlocked or a wrong password was typed, with alerts on your phone. Download-finished alerts for browsers, Steam and Epic.
 - **Sound effects:** for charging, notifications, connections and more.
 - **Settings sync:** settings change on either device and stay in sync.
 - **Auto-lock:** locks the PC when your phone leaves.
@@ -89,14 +94,17 @@ MIT
 ### 1. Bilgisayar
 1. **[.NET 8 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/8.0)**'ı kur. Sayfada *.NET Desktop Runtime* → *Windows x64* kısmında. Zaten kuruluysa bu adımı geç.
 2. **PC-Panel-Windows.zip**'i indir ve kalıcı bir klasöre çıkart, örneğin `Belgeler\PC Panel`.
-3. **PCPanel.exe**'yi aç ve yönetici izninde **Evet** de. İzin, sıcaklıkları okuyabilmesi için gerekli.
+3. **PCPanel.exe**'yi aç ve yönetici izninde **Evet** de. İzin, sıcaklıkları okuyabilmesi için gerekli. Bunu sadece bir kere yaparsın; sonra bir daha sormaz.
 4. Güvenlik duvarı sorarsa **özel ağlar** için izin ver.
 5. Ana sayfada bir QR kod çıkar. Uygulama Windows ile birlikte otomatik açılır; istersen Ayarlar'dan kapatabilirsin.
 
 ### 2. Telefon
 1. **PC-Panel.apk**'yı telefonda aç ve kur. *Bilinmeyen uygulamaları yükle* izni isterse tarayıcına izin ver.
 2. PC Panel'i aç, **QR kodu tara**'ya bas ve bilgisayardaki kodu okut. İkisi de aynı Wi-Fi'da olmalı.
-3. **Xiaomi / MIUI / HyperOS:**
+3. **Play Protect engellerse** ("Uygulama engellendi"): APK Play Store'dan gelmediği için oluyor, uygulamada sorun yok (kodun hepsi burada).
+   - **Diğer ayrıntılar → Yine de yükle**'ye bas.
+   - Böyle bir buton yoksa: **Play Store** → profil resmin → **Play Protect** → ⚙ (sağ üst) → **Uygulamaları Play Protect ile tara**'yı kapat. APK'yı kur, sonra taramayı geri aç.
+4. **Xiaomi / MIUI / HyperOS:**
    - Uygulamada Ayarlar → **Android pil optimizasyonu** → İzin ver.
    - Telefon Ayarları → Uygulamalar → PC Panel → Pil tasarrufu → **Kısıtlama yok** yap.
 

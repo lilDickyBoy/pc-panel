@@ -132,6 +132,45 @@ namespace PcPanel.Services
         /// Opens a URL, file, folder or URI as the normal (non-admin) user, through Explorer.
         /// PC Panel runs elevated for the sensor driver; this keeps browsers and apps un-elevated.
         /// </summary>
+        /// <summary>
+        /// Opens a link/app without pulling you out of what you're doing: whatever window you were using
+        /// stays in front. With <paramref name="minimizeNew"/> the newly opened app window is minimised.
+        /// </summary>
+        public static void OpenInBackground(string target, bool minimizeNew, string processName = null)
+        {
+            var before = Native.GetForegroundWindow();
+            ShellOpen(target);
+            var ui = System.Windows.Application.Current?.Dispatcher;
+            System.Threading.Tasks.Task.Run(async () =>
+            {
+                for (int i = 0; i < 60; i++)   // up to ~9 s (Spotify can take a while to start)
+                {
+                    await System.Threading.Tasks.Task.Delay(150);
+                    IntPtr win = IntPtr.Zero;
+                    if (processName != null)
+                    {
+                        foreach (var p in Process.GetProcessesByName(processName))
+                            try { if (p.MainWindowHandle != IntPtr.Zero) { win = p.MainWindowHandle; break; } } catch { }
+                    }
+                    else
+                    {
+                        var fg = Native.GetForegroundWindow();
+                        if (fg != before && fg != IntPtr.Zero) win = fg;
+                    }
+                    if (win == IntPtr.Zero) continue;
+                    ui?.Invoke(() =>
+                    {
+                        if (minimizeNew) Native.ShowWindowAsync(win, Native.SW_SHOWMINNOACTIVE);
+                        Native.ForceForeground(before);
+                    });
+                    // some apps grab focus once more after loading – put the old window back again
+                    await System.Threading.Tasks.Task.Delay(900);
+                    ui?.Invoke(() => { if (Native.GetForegroundWindow() != before) Native.ForceForeground(before); });
+                    return;
+                }
+            });
+        }
+
         public static void ShellOpen(string target)
         {
             if (string.IsNullOrWhiteSpace(target)) return;
@@ -174,6 +213,7 @@ namespace PcPanel.Services
                     App.Settings.Save();
                 }
                 SetAutostart(App.Settings.Autostart);
+                EnsureLauncherTask();
             }
             catch (Exception ex) { Log.Write("Setup: " + ex.Message); }
         }
@@ -218,6 +258,17 @@ namespace PcPanel.Services
             Run("netsh", $"advfirewall firewall add rule name=\"PC Panel\" dir=in action=allow program=\"{exe}\" enable=yes profile=any remoteip=localsubnet");
         }
 
+        public const string LauncherTask = "PC Panel Launcher";
+
+        public static bool IsElevated
+        {
+            get
+            {
+                try { return new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator); }
+                catch { return false; }
+            }
+        }
+
         /// <summary>
         /// Uses Task Scheduler (highest privileges) so PC Panel starts at logon without a UAC prompt
         /// and is never killed after 72 h (ExecutionTimeLimit = PT0S).
@@ -227,15 +278,66 @@ namespace PcPanel.Services
             try
             {
                 if (!on) { Run("schtasks", "/Delete /TN \"PC Panel\" /F"); return; }
-                var user = WindowsIdentity.GetCurrent().Name;
-                var exe = ExePath;
-                var xml = $@"<?xml version=""1.0"" encoding=""UTF-16""?>
+                RegisterTask("PC Panel", logonTrigger: true, "--tray");
+            }
+            catch (Exception ex) { Log.Write("Autostart: " + ex.Message); }
+        }
+
+        /// <summary>
+        /// A trigger-less task that runs PC Panel with admin rights. Opening PC Panel normally (Start menu,
+        /// desktop) starts this task instead, so there is no UAC prompt every time.
+        /// </summary>
+        public static void EnsureLauncherTask()
+        {
+            if (!IsElevated) return;
+            try
+            {
+                var marker = Path.Combine(AppSettings.Dir, "launcher.path");
+                if (File.Exists(marker) && File.ReadAllText(marker) == ExePath && TaskExists(LauncherTask)) return;
+                RegisterTask(LauncherTask, logonTrigger: false, "--launched", "Parallel");
+                Directory.CreateDirectory(AppSettings.Dir);
+                File.WriteAllText(marker, ExePath);
+            }
+            catch (Exception ex) { Log.Write("Launcher task: " + ex.Message); }
+        }
+
+        public static bool TaskExists(string name)
+        {
+            try
+            {
+                using var p = Process.Start(new ProcessStartInfo("schtasks", $"/Query /TN \"{name}\"") { CreateNoWindow = true, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true });
+                p.WaitForExit(5000);
+                return p.ExitCode == 0;
+            }
+            catch { return false; }
+        }
+
+        /// <summary>Runs the launcher task (elevated, no prompt). True if the task started.</summary>
+        public static bool RunLauncherTask()
+        {
+            try
+            {
+                using var p = Process.Start(new ProcessStartInfo("schtasks", $"/Run /TN \"{LauncherTask}\"") { CreateNoWindow = true, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true });
+                p.WaitForExit(5000);
+                return p.ExitCode == 0;
+            }
+            catch { return false; }
+        }
+
+        static void RegisterTask(string name, bool logonTrigger, string args, string instances = "IgnoreNew")
+        {
+            var user = WindowsIdentity.GetCurrent().Name;
+            var exe = ExePath;
+            string trigger = logonTrigger
+                ? $"<Triggers><LogonTrigger><Enabled>true</Enabled><UserId>{System.Security.SecurityElement.Escape(user)}</UserId><Delay>PT5S</Delay></LogonTrigger></Triggers>"
+                : "<Triggers/>";
+            var xml = $@"<?xml version=""1.0"" encoding=""UTF-16""?>
 <Task version=""1.2"" xmlns=""http://schemas.microsoft.com/windows/2004/02/mit/task"">
   <RegistrationInfo><Description>PC Panel</Description></RegistrationInfo>
-  <Triggers><LogonTrigger><Enabled>true</Enabled><UserId>{System.Security.SecurityElement.Escape(user)}</UserId><Delay>PT5S</Delay></LogonTrigger></Triggers>
+  {trigger}
   <Principals><Principal id=""Author""><UserId>{System.Security.SecurityElement.Escape(user)}</UserId><LogonType>InteractiveToken</LogonType><RunLevel>HighestAvailable</RunLevel></Principal></Principals>
   <Settings>
-    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <MultipleInstancesPolicy>{instances}</MultipleInstancesPolicy>
     <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
     <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
     <AllowHardTerminate>true</AllowHardTerminate>
@@ -250,14 +352,12 @@ namespace PcPanel.Services
     <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
     <Priority>5</Priority>
   </Settings>
-  <Actions Context=""Author""><Exec><Command>{System.Security.SecurityElement.Escape(exe)}</Command><Arguments>--tray</Arguments><WorkingDirectory>{System.Security.SecurityElement.Escape(Path.GetDirectoryName(exe))}</WorkingDirectory></Exec></Actions>
+  <Actions Context=""Author""><Exec><Command>{System.Security.SecurityElement.Escape(exe)}</Command><Arguments>{args}</Arguments><WorkingDirectory>{System.Security.SecurityElement.Escape(Path.GetDirectoryName(exe))}</WorkingDirectory></Exec></Actions>
 </Task>";
-                var tmp = Path.Combine(Path.GetTempPath(), "pcpanel_task.xml");
-                File.WriteAllText(tmp, xml, Encoding.Unicode);
-                Run("schtasks", $"/Create /TN \"PC Panel\" /XML \"{tmp}\" /F");
-                try { File.Delete(tmp); } catch { }
-            }
-            catch (Exception ex) { Log.Write("Autostart: " + ex.Message); }
+            var tmp = Path.Combine(Path.GetTempPath(), "pcpanel_task_" + Guid.NewGuid().ToString("N").Substring(0, 6) + ".xml");
+            File.WriteAllText(tmp, xml, Encoding.Unicode);
+            Run("schtasks", $"/Create /TN \"{name}\" /XML \"{tmp}\" /F");
+            try { File.Delete(tmp); } catch { }
         }
 
         static void Run(string exe, string args)

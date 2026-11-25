@@ -55,12 +55,24 @@ class PcPanelApp : Application() {
                 description = "Files your PC sent to this phone"
             }
         )
+        nm.createNotificationChannel(
+            NotificationChannel(CH_SECURITY, "PC security", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "Your PC was turned on, unlocked or someone typed a wrong password"
+            }
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CH_DOWNLOADS, "Downloads on PC", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = "A download on your PC (browser, Steam, Epic) finished"
+            }
+        )
     }
 
     companion object {
         const val CH_ALERTS = "alerts"
         const val CH_SERVICE = "service"
         const val CH_FILES = "files"
+        const val CH_SECURITY = "security"
+        const val CH_DOWNLOADS = "downloads"
 
         fun startAlertService(ctx: Context) {
             try { ContextCompat.startForegroundService(ctx, Intent(ctx, AlertService::class.java)) } catch (_: Exception) { }

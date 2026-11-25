@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -64,11 +65,15 @@ namespace PcPanel.Services
             catch (Exception ex) { Log.Write("Media init: " + ex.Message); }
         }
 
+        readonly SemaphoreSlim _pickLock = new SemaphoreSlim(1, 1);
+
         async Task PickSession()
         {
+            if (_mgr == null) return;
+            await _pickLock.WaitAsync();
             try
             {
-                var sessions = _mgr.GetSessions();
+                var sessions = _mgr.GetSessions() ?? (IReadOnlyList<GlobalSystemMediaTransportControlsSession>)Array.Empty<GlobalSystemMediaTransportControlsSession>();
                 GlobalSystemMediaTransportControlsSession pick = null;
                 foreach (var s in sessions)
                 {
@@ -99,6 +104,7 @@ namespace PcPanel.Services
                 await Refresh();
             }
             catch (Exception ex) { Log.Write("PickSession: " + ex.Message); }
+            finally { _pickLock.Release(); }
         }
 
         void OnProps(GlobalSystemMediaTransportControlsSession s, MediaPropertiesChangedEventArgs e) => _ = Refresh();
@@ -199,7 +205,9 @@ namespace PcPanel.Services
                     BitmapSource sq = new CroppedBitmap(frame, new System.Windows.Int32Rect((w - side) / 2, (h - side) / 2, side, side));
                     double scale = 300.0 / side;
                     if (scale < 1) sq = new TransformedBitmap(sq, new ScaleTransform(scale, scale));
-                    sq.Freeze();
+                    // copy the pixels into a brand-new bitmap: the decoder chain above belongs to this
+                    // background thread, and WPF refuses to draw it on the UI thread otherwise
+                    sq = Materialize(sq);
                     Art = sq;
 
                     var enc = new JpegBitmapEncoder { QualityLevel = 85 };
@@ -212,6 +220,17 @@ namespace PcPanel.Services
             }
             catch (Exception ex) { Log.Write("Art: " + ex.Message); }
             ArtVersion++;
+        }
+
+        public static BitmapSource Materialize(BitmapSource src)
+        {
+            BitmapSource f = src.Format == PixelFormats.Bgra32 ? src : new FormatConvertedBitmap(src, PixelFormats.Bgra32, null, 0);
+            int w = f.PixelWidth, h = f.PixelHeight, stride = w * 4;
+            var px = new byte[stride * h];
+            f.CopyPixels(px, stride, 0);
+            var b = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, px, stride);
+            b.Freeze();
+            return b;
         }
 
         static BitmapSource TrimBars(BitmapSource src)
