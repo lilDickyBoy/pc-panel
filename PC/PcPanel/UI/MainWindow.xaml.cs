@@ -32,6 +32,7 @@ namespace PcPanel.UI
         {
             ("home", Glyph.Home, "pc.nav.home"),
             ("notch", Glyph.Monitor, "pc.nav.notch"),
+            ("screen", Glyph.Phone, "pc.nav.screen"),
             ("music", Glyph.Music, "pc.nav.music"),
             ("features", Glyph.Apps, "pc.nav.features"),
             ("settings", Glyph.Settings, "pc.nav.settings"),
@@ -183,11 +184,13 @@ namespace PcPanel.UI
             PageTitle.Text = Loc.T(_pages.First(p => p.id == _page).key);
             PageHost.Children.Clear();
             _qrImage = null; _addrText = null; _transferText = null; _activityHost = null;
+            _ssStatus = null; _ssStats = null; _pmStatus = null;
             switch (_page)
             {
                 case "home": BuildHome(); break;
                 case "notch": BuildNotch(); break;
                 case "music": BuildMusic(); break;
+                case "screen": BuildScreen(); break;
                 case "features": BuildFeatures(); break;
                 default: BuildSettings(); break;
             }

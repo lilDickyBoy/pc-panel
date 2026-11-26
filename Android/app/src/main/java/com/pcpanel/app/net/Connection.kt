@@ -144,6 +144,12 @@ object Connection {
     var activity by mutableStateOf<List<ActivityItem>>(emptyList())
     /** Lyrics line currently sung on the PC (empty = none). */
     var lyricLine by mutableStateOf("")
+    // phone as a second screen
+    var ssState by mutableStateOf(SsState())
+        private set
+    var ssOpen by mutableStateOf<ScreenOpen?>(null)
+    var ssCloseTick by mutableStateOf(0)
+        private set
     var lyricNext by mutableStateOf("")
 
     // ------------------------------------------------------------------ internals
@@ -547,6 +553,20 @@ object Connection {
             }
             "bye" -> lastBye = o.optString("reason")
 
+            // ---------------- second screen
+            "ssPrepare" -> openSecondScreen()
+            "ssOpen" -> {
+                val d = Base64.getDecoder()
+                val so = ScreenOpen(
+                    host = o.optString("host"), port = o.optInt("port", 47810),
+                    ticket = d.decode(o.optString("ticket")), key = d.decode(o.optString("key")),
+                    w = o.optInt("w"), h = o.optInt("h"), usb = o.optBoolean("usb"),
+                )
+                ui { ssOpen = so }
+            }
+            "ssState" -> { val st = SsState.parse(o); ui { ssState = st } }
+            "ssClose" -> ui { ssOpen = null; ssState = SsState(); ssCloseTick++ }
+
             // ---------------- v2
             "settings" -> {
                 val s = PcSettings.parse(o)
@@ -783,6 +803,12 @@ object Connection {
             "cpuAlert" -> cur.copy(cpuAlert = value as Int)
             "gpuAlert" -> cur.copy(gpuAlert = value as Int)
             "autostart" -> cur.copy(autostart = value as Boolean)
+            "ssTouch" -> cur.copy(ssTouch = value as Boolean)
+            "ssQuality" -> cur.copy(ssQuality = value as String)
+            "ssOrient" -> cur.copy(ssOrient = value as String)
+            "ssConn" -> cur.copy(ssConn = value as String)
+            "ssScale" -> cur.copy(ssScale = value as Int)
+            "ssFps" -> cur.copy(ssFps = value as Boolean)
             else -> cur
         }
         if (send(JSONObject().put("type", "set").put("values", JSONObject().put(key, value))) && key == "lang") Prefs.clearLangDirty()
@@ -822,6 +848,31 @@ object Connection {
         mixer = mixer.map { if (it.id == id) it.copy(vol = vol ?: it.vol, mute = mute ?: it.mute) else it }
     }
     fun outputSet(id: String) { outputs = outputs.map { it.copy(isDefault = it.id == id) }; cmd("outputSet", "id" to id) }
+
+    /** Ask the PC to prepare the virtual monitor ([w]×[h] = this phone's real screen). */
+    fun ssRequest(w: Int, h: Int) { ui { ssOpen = null; ssState = SsState(state = "preparing", step = "ss.step.asking") }; cmd("ssRequest", "w" to w, "h" to h) }
+    fun ssStop() { ui { ssOpen = null; ssState = SsState() }; cmd("ssStop") }
+
+    /** Opens the full-screen second-screen view, or posts a notification when the app is in the background. */
+    fun openSecondScreen() = ui {
+        val i = android.content.Intent(ctx, com.pcpanel.app.SecondScreenActivity::class.java)
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        if (foreground) {
+            try { ctx.startActivity(i); return@ui } catch (_: Exception) { }
+        }
+        try {
+            val pi = android.app.PendingIntent.getActivity(ctx, 7, i, android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT)
+            val n = NotificationCompat.Builder(ctx, PcPanelApp.CH_ALERTS)
+                .setSmallIcon(R.drawable.ic_stat_pcpanel)
+                .setContentTitle(Str.t("ss.notifTitle"))
+                .setContentText(Str.t("ss.notifText"))
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
+                .setContentIntent(pi)
+                .build()
+            (ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(1007, n)
+        } catch (_: Exception) { }
+    }
 
     fun startScreen(fps: Int, quality: Int) = cmd("screenStart", "fps" to fps, "quality" to quality)
     fun stopScreen() { cmd("screenStop"); ui { frame = null } }

@@ -38,6 +38,14 @@
             </intent-filter>
         </activity>
 
+        <!-- Phone as a second monitor for the PC (full screen, 60 fps) -->
+        <activity
+            android:name=".SecondScreenActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|navigation|uiMode|density"
+            android:theme="@style/Theme.PcPanel" />
+
         <!-- Share → PC Panel (links open on the PC, files are sent to it) -->
         <activity
             android:name=".ShareActivity"

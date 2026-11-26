@@ -6,7 +6,7 @@ $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $Root    = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $Repo    = 'pc-panel'
-$Version = '2.2.0'
+$Version = '2.3.0'
 $Tag     = "v$Version"
 $TokenFile = Join-Path $env:APPDATA 'PC Panel\github-token.bin'
 Add-Type -AssemblyName System.Security
@@ -145,16 +145,9 @@ $notes = @"
 ## PC Panel $Version
 
 **What's new**
-- The notch now spins the real album cover like a vinyl record
-- Edge light: a glowing line around the notch (solid, flowing gradient like blue → white → blue, or album colour), set from the PC or the phone
-- Synced lyrics: while music plays the notch widens and the lyrics slide in line by line (no account or API key needed)
-- Bluetooth: when headphones connect, the notch shows the Bluetooth icon and the device name
-- Screenshots you take on the PC go straight to the phone's gallery
-- Security alerts + activity log: see exactly when (hour:minute) your PC was turned on, unlocked, or a wrong password was typed
-- Download finished alerts for browsers, Steam and Epic Games (no setup)
-- Open Spotify / YouTube in the background, real brand logos, notch hides 0.2 s after you pause
-- Drag-to-notch fixed (and can be turned off); no more admin prompt every time you open PC Panel
-- Phone: default disconnect delay is now 1 minute
+- **Phone as a second screen:** Windows extends the desktop to your phone at 60 FPS (GPU capture + NVENC/AMF hardware encoding, hardware decoding on the phone, low-latency mode). Works over the USB cable (smoothest) or Wi-Fi. Touch works like a real touchscreen (tap, scroll, pinch) and can be turned off. Quality, orientation, connection, scaling and an FPS counter can be set on both devices.
+- **Control the phone from the PC:** a new phone window shows your phone live (up to 60 FPS) and lets you use it with the mouse and keyboard, with power, volume, back/home/recents, rotate, notifications and screenshot-to-PC buttons. Can switch to Wi-Fi after the first USB connection.
+- New PC page **Phone screen** with one-click setup (the helper tools are downloaded once on first use).
 
 **If Play Protect blocks the install:** tap **More details → Install anyway**. If there's no such button: Play Store → profile picture → **Play Protect** → ⚙ → turn off *Scan apps with Play Protect*, install, then turn it back on.
 

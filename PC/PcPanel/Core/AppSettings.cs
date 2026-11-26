@@ -52,6 +52,21 @@ namespace PcPanel.Core
         public bool SecurityAlerts { get; set; } = true;
         public bool DownloadAlerts { get; set; } = true;
 
+        // ---- second screen (phone as a monitor) – shared with the phone
+        public bool SsTouch { get; set; } = true;
+        public string SsQuality { get; set; } = "high";     // low | mid | high | ultra
+        public string SsOrient { get; set; } = "landscape"; // landscape | portrait
+        public string SsConn { get; set; } = "auto";        // auto | usb | wifi
+        public int SsScale { get; set; } = 150;             // Windows scale % of the phone monitor
+        public bool SsFps { get; set; } = false;            // FPS counter on the phone
+
+        // ---- phone mirror (control the phone from the PC)
+        public string PmQuality { get; set; } = "high";     // mid | high | ultra
+        public bool PmAudio { get; set; } = false;
+        public bool PmScreenOff { get; set; } = false;
+        public bool PmOnTop { get; set; } = false;
+        public bool PmAwake { get; set; } = true;
+
         // ---- music
         public string MusicSource { get; set; } = "spotify"; // spotify | youtube
         public string SpotifyClientId { get; set; } = "";
@@ -91,6 +106,11 @@ namespace PcPanel.Core
             if (s.NotchStyle != "island") s.NotchStyle = "notch";
             if (s.NotchMode != "always") s.NotchMode = "auto";
             if (s.MusicSource != "youtube") s.MusicSource = "spotify";
+            if (s.SsQuality is not ("low" or "mid" or "high" or "ultra")) s.SsQuality = "high";
+            if (s.SsOrient != "portrait") s.SsOrient = "landscape";
+            if (s.SsConn is not ("usb" or "wifi")) s.SsConn = "auto";
+            s.SsScale = Math.Clamp(s.SsScale, 100, 300);
+            if (s.PmQuality is not ("mid" or "ultra")) s.PmQuality = "high";
             if (dirty) s.Save();
             return s;
         }

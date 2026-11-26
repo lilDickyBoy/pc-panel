@@ -155,6 +155,13 @@ data class PcSettings(
     val spotifyClient: Boolean = false,
     val ytKey: Boolean = false,
     val version: String = "",
+    // phone as a second screen
+    val ssTouch: Boolean = true,
+    val ssQuality: String = "high",
+    val ssOrient: String = "landscape",
+    val ssConn: String = "auto",
+    val ssScale: Int = 150,
+    val ssFps: Boolean = false,
 ) {
     companion object {
         fun parse(o: JSONObject) = PcSettings(
@@ -173,6 +180,28 @@ data class PcSettings(
             cpuAlert = o.optInt("cpuAlert", 90), gpuAlert = o.optInt("gpuAlert", 85), autostart = o.optBoolean("autostart", true),
             spotify = o.optBoolean("spotify"), spotifyUser = o.optString("spotifyUser"), spotifyClient = o.optBoolean("spotifyClient"),
             ytKey = o.optBoolean("ytKey"), version = o.optString("version"),
+            ssTouch = o.optBoolean("ssTouch", true), ssQuality = o.optString("ssQuality", "high"), ssOrient = o.optString("ssOrient", "landscape"),
+            ssConn = o.optString("ssConn", "auto"), ssScale = o.optInt("ssScale", 150), ssFps = o.optBoolean("ssFps", false),
+        )
+    }
+}
+
+/** Second-screen status reported by the PC ("ssState"). */
+data class SsState(
+    val state: String = "off",        // off | preparing | waiting | live | error
+    val step: String = "",
+    val progress: Double = -1.0,
+    val error: String = "",
+    val transport: String = "",
+    val encoder: String = "",
+    val fps: Int = 0,
+    val latency: Int = -1,
+) {
+    val busy get() = state == "preparing" || state == "waiting" || state == "live"
+    companion object {
+        fun parse(o: JSONObject) = SsState(
+            o.optString("state", "off"), o.optString("step"), o.optDouble("progress", -1.0), o.optString("error"),
+            o.optString("transport"), o.optString("encoder"), o.optInt("fps"), o.optInt("latency", -1),
         )
     }
 }

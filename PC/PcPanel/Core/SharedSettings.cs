@@ -59,6 +59,12 @@ namespace PcPanel.Core
                 spotifyUser = s.SpotifyUser,
                 spotifyClient = !string.IsNullOrWhiteSpace(s.SpotifyClientId),
                 ytKey = !string.IsNullOrWhiteSpace(s.YouTubeKey),
+                ssTouch = s.SsTouch,
+                ssQuality = s.SsQuality,
+                ssOrient = s.SsOrient,
+                ssConn = s.SsConn,
+                ssScale = s.SsScale,
+                ssFps = s.SsFps,
                 version = App.Version
             };
         }
@@ -112,6 +118,12 @@ namespace PcPanel.Core
                     case "musicSrc": s.MusicSource = S(v) == "youtube" ? "youtube" : "spotify"; break;
                     case "cpuAlert": s.CpuAlert = Math.Clamp(I(v, 90), 60, 105); break;
                     case "gpuAlert": s.GpuAlert = Math.Clamp(I(v, 85), 60, 105); break;
+                    case "ssTouch": s.SsTouch = B(v); break;
+                    case "ssQuality": { var q = S(v); s.SsQuality = q is "low" or "mid" or "ultra" ? q : "high"; break; }
+                    case "ssOrient": s.SsOrient = S(v) == "portrait" ? "portrait" : "landscape"; break;
+                    case "ssConn": { var c = S(v); s.SsConn = c is "usb" or "wifi" ? c : "auto"; break; }
+                    case "ssScale": s.SsScale = Math.Clamp(I(v, 150), 100, 300); break;
+                    case "ssFps": s.SsFps = B(v); break;
                     case "autostart": { bool a = B(v); if (a != s.Autostart) { s.Autostart = a; autostartChanged = true; } break; }
                 }
             }

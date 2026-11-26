@@ -330,6 +330,17 @@ namespace PcPanel.Core
                     SensorService.I.Wake();
                     break;
 
+                // ------------------------------------------------ phone as a second screen
+                case "ssRequest":
+                    _ = Services.Screen.SecondScreenService.I.OnRequest(s, (int)D(m, "w"), (int)D(m, "h"));
+                    break;
+                case "ssStop":
+                    _ = Services.Screen.SecondScreenService.I.Stop(false);
+                    break;
+                case "ssStateGet":
+                    await s.SendAsync(Services.Screen.SecondScreenService.I.StateMessage());
+                    break;
+
                 case "ping":
                     await s.SendAsync(new { type = "pong", t = D(m, "t") });
                     break;

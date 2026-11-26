@@ -44,6 +44,12 @@ Control your Windows PC from your Android phone: live temperatures, music, a Dyn
   3. Paste the key into the PC app's **Music** tab.
 - **Turn the PC on from the phone (Wake-on-LAN):** follow the steps in the phone app's Settings → **Set up Wake-on-LAN**. This requires a wired connection.
 
+### 4. Phone screen (second monitor / control the phone)
+1. In the PC app open **Phone screen**. Under *Setup*, click **Download** / **Install** for the three helpers (once): the video engine ([FFmpeg](https://ffmpeg.org)), the phone engine ([scrcpy](https://github.com/Genymobile/scrcpy), includes adb) and the [Virtual Display Driver](https://github.com/VirtualDrivers/Virtual-Display-Driver).
+2. For the smoothest picture and for controlling the phone, turn on **USB debugging** on the phone (steps are shown on that page) and plug in the USB cable. On Xiaomi also turn on **USB debugging (Security settings)**.
+3. **Second screen:** click **Start second screen** on the PC, or on the phone go to Tools → **Second screen** → Start. Swipe back on the phone to end it; the extra monitor disappears again.
+4. **Control the phone:** click **Open phone**. After the first USB connection you can click **Go wireless** and unplug the cable.
+
 ### Updating
 Download the new APK and ZIP from [Releases](https://github.com/lilDickyBoy/pc-panel/releases):
 - The APK installs over the old one and keeps your pairing.
@@ -64,6 +70,7 @@ Download the new APK and ZIP from [Releases](https://github.com/lilDickyBoy/pc-p
   - Per-app volume mixer and output device switching.
   - Notch timer and fan control.
 - **Power:** shut down, restart, sleep, lock, screen off, timers, and Wake-on-LAN.
+- **Second screen:** use the phone as an extra monitor for the PC at 60 FPS, with touch (Tools → Second screen).
 - **Also:** Find my phone, a desk dashboard mode, and 12 languages.
 
 **PC app (Windows 10/11)**
@@ -72,6 +79,7 @@ Download the new APK and ZIP from [Releases](https://github.com/lilDickyBoy/pc-p
 - **Security log:** see when the PC was turned on, unlocked or a wrong password was typed, with alerts on your phone. Download-finished alerts for browsers, Steam and Epic.
 - **Sound effects:** for charging, notifications, connections and more.
 - **Settings sync:** settings change on either device and stay in sync.
+- **Phone screen:** the phone as a 60 FPS second monitor (virtual display + GPU capture + NVENC/AMF hardware encoding, USB or Wi-Fi, real touch input), and your phone in a window on the PC that you control with the mouse and keyboard.
 - **Auto-lock:** locks the PC when your phone leaves.
 - **Game mode and temperature alerts.**
 - **Pairing:** by QR code; all traffic is end-to-end encrypted (AES-GCM) and stays on your local network.
@@ -123,6 +131,12 @@ MIT
   1. Google Cloud'da *YouTube Data API v3*'ü etkinleştir.
   2. **Credentials** → **Create credentials** → *Public data* ile bir API anahtarı al.
   3. Anahtarı **Müzik** sekmesine yapıştır.
+
+### 4. Telefon ekranı (ikinci monitör / telefonu PC'den kontrol)
+1. PC uygulamasında **Telefon ekranı**'nı aç. *Kurulum* kısmında üç yardımcı için bir kere **İndir** / **Kur**'a bas: görüntü motoru (FFmpeg), telefon motoru (scrcpy, adb dahil) ve Virtual Display Driver.
+2. En akıcı görüntü ve telefonu kontrol etmek için telefonda **USB hata ayıklama**'yı aç (adımlar o sayfada yazıyor) ve USB kablosunu tak. Xiaomi'de **USB hata ayıklama (Güvenlik ayarları)**'nı da aç.
+3. **İkinci ekran:** PC'de **İkinci ekranı başlat**'a bas ya da telefonda Araçlar → **İkinci ekran** → Başlat. Bitirmek için telefonda geri hareketi yap; ekstra monitör kaybolur.
+4. **Telefonu kontrol et:** **Telefonu aç**'a bas. İlk USB bağlantısından sonra **Kablosuz yap** deyip kabloyu çıkarabilirsin.
 
 ### Güncelleme
 Releases'tan yeni dosyaları indir:

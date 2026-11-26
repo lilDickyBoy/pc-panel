@@ -122,6 +122,8 @@ namespace PcPanel
                 Ui(() => { _main?.RefreshDevices(); UpdateTrayText(); Notch?.PhoneBatteryChanged(); });
             };
             Server.Start();
+            SharedSettings.Changed += Services.Screen.SecondScreenService.I.OnSettingsChanged;
+            Services.Screen.VirtualDisplay.CleanUpAfterCrash();
             SensorService.I.Start();
             AutoLockService.Start();
 
@@ -312,6 +314,8 @@ namespace PcPanel
 
         public static void Quit()
         {
+            try { Services.Screen.PhoneMirror.I.Stop(); } catch { }
+            try { Services.Screen.SecondScreenService.I.Shutdown(); } catch { }
             try { FanService.I.RestoreAll(); } catch { }
             try { Server?.Stop(); } catch { }
             try { if (DisplayService.NightLevel > 0) DisplayService.SetNight(0); } catch { }

@@ -138,6 +138,7 @@ fun ToolsScreen() {
             null -> ToolsGrid()
             "apps" -> AppsScreen(back)
             "deck" -> DeckPage(back)
+            "screen" -> SecondScreenPage(back)
             "files" -> FilesPage(back)
             "clip" -> ClipboardPage(back)
             "sound" -> SoundPage(back)
@@ -153,6 +154,7 @@ fun ToolsScreen() {
 @Composable
 private fun ToolsGrid() {
     val tools = listOf(
+        ToolDef("screen", Icons.Rounded.DesktopWindows, C.Blue, Str.t("tools.screen"), Str.t("tools.screenSub")),
         ToolDef("deck", Icons.Rounded.ViewModule, C.Indigo, Str.t("tools.deck"), Str.t("tools.deckSub")),
         ToolDef("apps", Icons.Rounded.Apps, C.Blue, Str.t("tab.apps"), Str.t("tools.appsSub")),
         ToolDef("files", Icons.Rounded.UploadFile, C.Orange, Str.t("tools.files"), Str.t("tools.filesSub")),
